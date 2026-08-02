@@ -1,472 +1,303 @@
-\# Markdown Slides
-
-
+# Markdown Slides
 
 > Turn any Markdown document into a beautiful, navigable HTML presentation.
 
-
-
-Markdown Slides is an open-source tool that converts Markdown into an interactive slide deck. Instead of scrolling through thousands of lines, browse your document one section at a time.
-
-
+Markdown Slides is an open-source tool that converts Markdown into an interactive slide deck.
+Instead of scrolling through thousands of lines, browse your document one section at a time.
 
 Designed for developers, technical writers, and anyone reading long Markdown documents.
 
+---
 
-
-\---
-
-
-
-\## Why?
-
-
+## Why?
 
 AI coding assistants increasingly generate large Markdown documents:
 
-
-
-\* Product Requirement Documents (PRDs)
-
-\* Architecture Decision Records (ADRs)
-
-\* Design documents
-
-\* RFCs
-
-\* Research reports
-
-\* Meeting notes
-
-\* Implementation plans
-
-
+* Product Requirement Documents (PRDs)
+* Architecture Decision Records (ADRs)
+* Design documents
+* RFCs
+* Research reports
+* Meeting notes
+* Implementation plans
 
 These documents are easy to generate but often difficult to read.
 
-
-
 Markdown Slides makes them enjoyable to explore.
 
+---
 
+## Features
 
-\---
+* 📄 Works with standard GitHub Flavored Markdown
+* 🎯 100% deterministic (no AI required)
+* ⚡ Instant HTML presentation
+* ⌨️ Keyboard navigation
+* 🔍 Built-in search across headings, prose, lists and code
+* 📚 Collapsible table of contents
+* 🌙 Light & dark themes
+* 💻 Syntax-highlighted code blocks with optional line numbers
+* 🖼️ Responsive images with fullscreen preview
+* 📊 Scrollable tables
+* 📱 Responsive layout
+* 🔒 Runs entirely in your browser — nothing is uploaded
 
+---
 
+## Getting started
 
-\## Features
+```bash
+npm install
+npm run dev
+```
 
+Then open the printed URL and drop a `.md` file onto the page.
 
+| Command           | What it does                                  |
+| ----------------- | --------------------------------------------- |
+| `npm run dev`     | Start the dev server with hot reload           |
+| `npm run build`   | Type-check and build to `dist/`                |
+| `npm run preview` | Serve the production build locally             |
+| `npm test`        | Run the slide-builder and search test suite    |
+| `npm run typecheck` | Type-check without emitting                  |
 
-\* 📄 Works with standard GitHub Flavored Markdown
+---
 
-\* 🎯 100% deterministic (no AI required)
+## Opening a document
 
-\* ⚡ Instant HTML presentation
+There are four ways to load Markdown:
 
-\* ⌨️ Keyboard navigation
+* **Drop a file** anywhere on the window.
+* **Choose a file** with the *Open* button in the toolbar.
+* **Paste Markdown** directly into the welcome screen.
+* **Load a URL** — either from the welcome screen or with a query parameter:
 
-\* 🔍 Built-in search
+  ```text
+  http://localhost:5173/?src=https://raw.githubusercontent.com/user/repo/main/DESIGN.md
+  ```
 
-\* 📚 Table of contents
+  GitHub `blob` links are rewritten to their raw equivalent automatically. Remote files must
+  be served with permissive CORS headers.
 
-\* 🌙 Light \& dark themes
+The last document you opened is restored when you reload the page.
 
-\* 💻 Syntax-highlighted code blocks
+---
 
-\* 🖼️ Responsive images
-
-\* 📊 Table support
-
-\* 📱 Responsive layout
-
-
-
-\---
-
-
-
-\## Demo
-
-
-
-Coming soon.
-
-
-
-\---
-
-
-
-\## Example
-
-
+## Example
 
 Input:
 
-
-
 ```markdown
-
-\# Authentication
-
-
+# Authentication
 
 Authentication is handled by Supabase Auth.
 
-
-
-\## Why
-
-
+## Why
 
 It reduces backend complexity.
 
+## Alternatives
 
+- Clerk
+- Firebase Auth
 
-\## Alternatives
-
-
-
-\- Clerk
-
-\- Firebase Auth
-
-
-
-\# Database
-
-
+# Database
 
 PostgreSQL is the source of truth.
-
 ```
-
-
 
 Output:
 
-
-
 ```text
-
-Slide 1
-
-Authentication
-
-
-
-↓
-
-
-
-Slide 2
-
-Why
-
-
-
-↓
-
-
-
-Slide 3
-
-Alternatives
-
-
-
-↓
-
-
-
-Slide 4
-
-Database
-
+Slide 1        Slide 2   Slide 3        Slide 4
+Authentication  Why      Alternatives   Database
 ```
 
+Each slide is one section. Sections too tall for the screen are split into parts stacked
+vertically, reachable with `↑` / `↓`.
 
+---
 
-\---
-
-
-
-\## How It Works
-
-
+## How It Works
 
 ```text
-
 Markdown
-
-&#x20;    │
-
-&#x20;    ▼
-
-Markdown Parser
-
-&#x20;    │
-
+     │
+     ▼
+Markdown Parser (remark + GFM)
+     │
 Markdown AST
-
-&#x20;    │
-
-&#x20;    ▼
-
-Slide Builder
-
-&#x20;    │
-
+     │
+     ▼
+Slide Builder (deterministic rules)
+     │
 Slide Model
-
-&#x20;    │
-
-&#x20;    ▼
-
-HTML Presentation
-
+     │
+     ▼
+React components → Reveal.js
 ```
-
-
 
 No AI.
 
-
-
 No preprocessing.
-
-
 
 No proprietary format.
 
-
-
 Your Markdown file remains the single source of truth.
 
+---
 
-
-\---
-
-
-
-\## Slide Generation Rules
-
-
+## Slide Generation Rules
 
 The presentation is generated using deterministic rules.
 
-
-
 Default strategy:
 
+* Every `# Heading` starts a new slide group.
+* Every `## Heading` creates a new slide.
+* `###` and deeper headings stay within the current slide.
+* Content before the first heading becomes an opening slide.
+* Large sections are automatically split into parts.
+* Code blocks never split across slides.
+* Tables remain intact whenever possible.
+* A slide never ends on a heading whose content lives on the next slide.
 
-
-\* Every `# Heading` starts a new slide group.
-
-\* Every `## Heading` creates a new slide.
-
-\* `###` and deeper headings stay within the current slide.
-
-\* Large sections are automatically split.
-
-\* Code blocks never split across slides.
-
-\* Tables remain intact whenever possible.
-
-
+The same document always produces the same deck.
 
 Future versions will support multiple generation strategies.
 
+---
 
-
-\---
-
-
-
-\## Keyboard Shortcuts
-
-
+## Keyboard Shortcuts
 
 | Key          | Action                     |
-
 | ------------ | -------------------------- |
-
-| ← →          | Previous / Next slide      |
-
-| ↑ ↓          | Previous / Next subsection |
-
+| ← →          | Previous / next slide      |
+| ↑ ↓          | Previous / next part       |
 | Home         | First slide                |
-
 | End          | Last slide                 |
-
 | F            | Fullscreen                 |
-
-| Esc          | Exit fullscreen            |
-
+| Esc          | Exit fullscreen / overview |
 | Ctrl/Cmd + K | Search                     |
+| /            | Search                     |
+| M            | Toggle table of contents   |
+| T            | Toggle light / dark theme  |
 
+---
 
+## Project structure
 
-\---
+```text
+src/
+  lib/
+    markdown.ts   Markdown → AST, AST slice → HTML
+    slides.ts     Deterministic slide builder + table of contents
+    search.ts     Full-document search
+    enhance.ts    Table wrappers, code chrome, line numbers
+    document.ts   File / URL loading and persistence
+  components/
+    Deck.tsx      Reveal.js integration and lazy slide rendering
+    Sidebar.tsx   Table of contents
+    SearchPalette.tsx
+    Welcome.tsx   Drop zone and loaders
+    Lightbox.tsx  Fullscreen image preview
+  examples/
+    tour.md       The bundled example document
+```
 
+### Performance notes
 
+Slide bodies are converted to HTML only when they come within two slides of the current
+position, so a 12,000-line document opens in well under two seconds and navigates without
+lag. Rendered slides are cached for the lifetime of the document.
 
-\## Philosophy
+Raw HTML embedded in a Markdown file is dropped rather than executed, so opening an untrusted
+document is safe.
 
+---
 
+## Philosophy
 
-Markdown Slides is \*\*not\*\* another presentation editor.
-
-
+Markdown Slides is **not** another presentation editor.
 
 Write your content in Markdown using your favorite editor.
 
-
-
 View it as slides whenever you want.
-
-
 
 Markdown stays the source of truth.
 
+---
 
+## Use Cases
 
-\---
+* Reading AI-generated PRDs
+* Exploring Architecture Decision Records (ADRs)
+* Reviewing RFCs
+* Technical documentation
+* Research reports
+* Long README files
+* Internal engineering documentation
+* Meeting notes
+* Learning material
 
+---
 
+## Deployment
 
-\## Use Cases
+`npm run build` produces a static site in `dist/`. The included GitHub Actions workflow
+publishes it to GitHub Pages on every push to `main`, setting `BASE_PATH` so assets resolve
+under `/<repository>/`.
 
+---
 
+## Roadmap
 
-\* Reading AI-generated PRDs
+### v1
 
-\* Exploring Architecture Decision Records (ADRs)
+* Markdown → HTML Slides ✅
+* Keyboard navigation ✅
+* Table of contents ✅
+* Search ✅
+* Responsive layout ✅
+* Light/Dark mode ✅
 
-\* Reviewing RFCs
+### v2
 
-\* Technical documentation
+* CLI
+* Live reload while editing
+* Multiple themes
+* PDF export
 
-\* Research reports
+### v3
 
-\* Long README files
+* Plugin system
+* Mermaid diagrams
+* Presenter mode
+* Speaker notes
+* Custom slide strategies
 
-\* Internal engineering documentation
+---
 
-\* Meeting notes
+## Tech Stack
 
-\* Learning material
+* React
+* TypeScript
+* Vite
+* Remark / Unified / Rehype
+* Reveal.js
+* Tailwind CSS
 
+---
 
-
-\---
-
-
-
-\## Roadmap
-
-
-
-\### v1
-
-
-
-\* Markdown → HTML Slides
-
-\* Keyboard navigation
-
-\* Table of contents
-
-\* Search
-
-\* Responsive layout
-
-\* Light/Dark mode
-
-
-
-\### v2
-
-
-
-\* CLI
-
-\* Live reload
-
-\* Multiple themes
-
-\* PDF export
-
-
-
-\### v3
-
-
-
-\* Plugin system
-
-\* Mermaid diagrams
-
-\* Presenter mode
-
-\* Speaker notes
-
-\* Custom slide strategies
-
-
-
-\---
-
-
-
-\## Tech Stack
-
-
-
-\* React
-
-\* TypeScript
-
-\* Vite
-
-\* Remark
-
-\* Unified
-
-\* Rehype
-
-\* Reveal.js
-
-\* Tailwind CSS
-
-
-
-\---
-
-
-
-\## Contributing
-
-
+## Contributing
 
 Contributions are welcome.
 
+Whether it's a bug report, feature request, documentation improvement, or new theme, we'd love
+your help.
 
+---
 
-Whether it's a bug report, feature request, documentation improvement, or new theme, we'd love your help.
-
-
-
-\---
-
-
-
-\## License
-
-
+## License
 
 MIT
-
-
-

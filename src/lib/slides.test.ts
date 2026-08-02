@@ -1,0 +1,151 @@
+import { describe, expect, it } from 'vitest'
+import { buildDeck } from './slides'
+import { normalize } from './markdown'
+import { searchDeck } from './search'
+
+const doc = `# Authentication
+
+Authentication is handled by Supabase Auth.
+
+## Why
+
+It reduces backend complexity.
+
+## Alternatives
+
+- Clerk
+- Firebase Auth
+
+# Database
+
+PostgreSQL is the source of truth.
+`
+
+describe('heading rules', () => {
+  it('creates one slide per # and ## heading', () => {
+    const deck = buildDeck(doc)
+    expect(deck.slides.map((slide) => slide.title)).toEqual([
+      'Authentication',
+      'Why',
+      'Alternatives',
+      'Database',
+    ])
+  })
+
+  it('keeps ### and deeper headings inside the current slide', () => {
+    const deck = buildDeck('# A\n\n### Detail\n\ntext\n\n#### More\n\ntext\n')
+    expect(deck.slides).toHaveLength(1)
+    expect(deck.slides[0].headings.map((heading) => heading.text)).toEqual(['Detail', 'More'])
+  })
+
+  it('records the enclosing group of a ## slide', () => {
+    const deck = buildDeck(doc)
+    expect(deck.slides[1].group).toBe('Authentication')
+    expect(deck.slides[3].group).toBe('')
+  })
+
+  it('puts content that precedes any heading on its own slide', () => {
+    const deck = buildDeck('Intro paragraph.\n\n# Real title\n\nBody.\n')
+    expect(deck.slides[0].level).toBe(0)
+    expect(deck.slides[0].text).toContain('Intro paragraph.')
+    expect(deck.slides[1].title).toBe('Real title')
+  })
+
+  it('never returns an empty deck', () => {
+    expect(buildDeck('').slides).toHaveLength(1)
+    expect(buildDeck('   \n\n  ').slides).toHaveLength(1)
+  })
+})
+
+describe('table of contents', () => {
+  it('nests ## sections under their # group', () => {
+    const deck = buildDeck(doc)
+    expect(deck.toc.map((entry) => entry.title)).toEqual(['Authentication', 'Database'])
+    expect(deck.toc[0].children.map((entry) => entry.title)).toEqual(['Why', 'Alternatives'])
+  })
+
+  it('points each entry at a real slide', () => {
+    const deck = buildDeck(doc)
+    for (const entry of deck.toc.flatMap((e) => [e, ...e.children])) {
+      expect(deck.slides[entry.slideIndex].title).toBe(entry.title)
+    }
+  })
+})
+
+describe('auto splitting', () => {
+  const longSection = `# Long\n\n${'A paragraph of prose. '.repeat(12)}\n\n${'Another paragraph. '.repeat(12)}\n\n${'Yet more prose. '.repeat(12)}\n`
+
+  it('splits tall sections into vertical parts of the same section', () => {
+    const deck = buildDeck(longSection, { maxWeight: 6 })
+    expect(deck.columns).toHaveLength(1)
+    expect(deck.columns[0].length).toBeGreaterThan(1)
+    expect(deck.slides.every((slide) => slide.title === 'Long')).toBe(true)
+    expect(deck.slides.map((slide) => slide.v)).toEqual(deck.slides.map((_, i) => i))
+    expect(deck.slides[0].partCount).toBe(deck.slides.length)
+  })
+
+  it('never splits a code block, however long', () => {
+    const code = '```js\n' + Array.from({ length: 80 }, (_, i) => `line${i}()`).join('\n') + '\n```'
+    const deck = buildDeck(`# Code\n\n${code}\n`, { maxWeight: 10 })
+    const codeSlides = deck.slides.filter((slide) =>
+      slide.nodes.some((node) => node.type === 'code'),
+    )
+    expect(codeSlides).toHaveLength(1)
+    expect(codeSlides[0].nodes.filter((node) => node.type === 'code')).toHaveLength(1)
+  })
+
+  it('keeps a table on a single slide', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => `| r${i} | v${i} |`).join('\n')
+    const deck = buildDeck(`# T\n\n| a | b |\n| - | - |\n${rows}\n`, { maxWeight: 8 })
+    const tableSlides = deck.slides.filter((slide) =>
+      slide.nodes.some((node) => node.type === 'table'),
+    )
+    expect(tableSlides).toHaveLength(1)
+  })
+
+  it('does not leave a heading stranded at the end of a part', () => {
+    const body = `${'Prose here. '.repeat(20)}\n\n### Next up\n\nMore text.\n`
+    const deck = buildDeck(`# S\n\n${body}`, { maxWeight: 4 })
+    for (const slide of deck.slides.slice(0, -1)) {
+      expect(slide.nodes[slide.nodes.length - 1]?.type).not.toBe('heading')
+    }
+  })
+
+  it('is deterministic', () => {
+    const a = buildDeck(doc)
+    const b = buildDeck(doc)
+    expect(a.slides.map((s) => [s.h, s.v, s.title, s.text])).toEqual(
+      b.slides.map((s) => [s.h, s.v, s.title, s.text]),
+    )
+  })
+})
+
+describe('search', () => {
+  it('finds body text and reports the surrounding snippet', () => {
+    const deck = buildDeck(doc)
+    const [hit] = searchDeck(deck, 'firebase')
+    expect(hit.slide.title).toBe('Alternatives')
+    expect(hit.match).toBe('Firebase')
+  })
+
+  it('ranks heading matches first', () => {
+    const deck = buildDeck(doc)
+    expect(searchDeck(deck, 'database')[0].slide.title).toBe('Database')
+  })
+
+  it('returns nothing for an empty query', () => {
+    expect(searchDeck(buildDeck(doc), '   ')).toEqual([])
+  })
+})
+
+describe('normalize', () => {
+  it('repairs documents whose Markdown punctuation was escaped', () => {
+    const escaped = '\\# Title\n\n\\## Section\n\n\\* item\n\n\\## Another\n'
+    expect(normalize(escaped)).toBe('# Title\n\n## Section\n\n* item\n\n## Another\n')
+  })
+
+  it('leaves ordinary documents untouched', () => {
+    const source = '# Title\n\nA literal \\* star and a \\# hash.\n'
+    expect(normalize(source)).toBe(source)
+  })
+})
