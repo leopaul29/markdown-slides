@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useDialogFocus } from '../lib/useDialogFocus'
 
 interface LightboxProps {
   src: string
@@ -7,6 +8,8 @@ interface LightboxProps {
 }
 
 export function Lightbox({ src, alt, onClose }: LightboxProps) {
+  const containerRef = useDialogFocus<HTMLDivElement>()
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -20,10 +23,12 @@ export function Lightbox({ src, alt, onClose }: LightboxProps) {
 
   return (
     <div
+      ref={containerRef}
       className="lightbox"
       role="dialog"
       aria-modal="true"
-      aria-label={alt || 'Image preview'}
+      aria-label={alt ? `Image: ${alt}` : 'Image preview'}
+      tabIndex={-1}
       onClick={onClose}
     >
       <img src={src} alt={alt} />

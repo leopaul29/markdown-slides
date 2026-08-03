@@ -77,21 +77,12 @@ export function Welcome({ dragging, busy, error, onFile, onUrl, onPaste, onSampl
         {pasteOpen ? (
           <div style={{ marginTop: '0.8rem', textAlign: 'left' }}>
             <textarea
+              className="paste-box"
               value={pasted}
               onChange={(event) => setPasted(event.target.value)}
               placeholder="Paste Markdown here…"
+              aria-label="Markdown to present"
               rows={8}
-              style={{
-                width: '100%',
-                padding: '0.7rem',
-                borderRadius: '0.6rem',
-                border: '1px solid var(--border)',
-                background: 'var(--bg)',
-                color: 'var(--text)',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                fontSize: '0.85rem',
-                outline: 'none',
-              }}
             />
             <button
               type="button"

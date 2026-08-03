@@ -5,11 +5,17 @@ on:
     branches: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nothing here pushes; don't leave a usable token in .git/config.
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22

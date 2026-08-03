@@ -58,19 +58,28 @@ export default function App() {
     setSearchOpen(false)
   }, [])
 
+  /*
+   * A `?src=` fetch starts while the user can already drop a file, so loads can
+   * overlap. Only the most recently started one is allowed to win.
+   */
+  const loadToken = useRef(0)
+
   const openFile = useCallback(
     async (file: File) => {
       if (!isMarkdownFile(file)) {
         setError(`“${file.name}” does not look like a Markdown file.`)
         return
       }
+      const token = ++loadToken.current
       try {
         setBusy(true)
-        applyDoc(await readMarkdownFile(file))
+        const loaded = await readMarkdownFile(file)
+        if (token !== loadToken.current) return
+        applyDoc(loaded)
       } catch {
-        setError(`Could not read “${file.name}”.`)
+        if (token === loadToken.current) setError(`Could not read “${file.name}”.`)
       } finally {
-        setBusy(false)
+        if (token === loadToken.current) setBusy(false)
       }
     },
     [applyDoc],
@@ -78,18 +87,22 @@ export default function App() {
 
   const openUrl = useCallback(
     async (url: string) => {
+      const token = ++loadToken.current
       try {
         setBusy(true)
         setError(null)
-        applyDoc(await fetchMarkdown(url))
+        const loaded = await fetchMarkdown(url)
+        if (token !== loadToken.current) return
+        applyDoc(loaded)
       } catch (cause) {
+        if (token !== loadToken.current) return
         setError(
           cause instanceof Error
             ? `${cause.message} The server may also be blocking cross-origin requests.`
             : 'Could not load that URL.',
         )
       } finally {
-        setBusy(false)
+        if (token === loadToken.current) setBusy(false)
       }
     },
     [applyDoc],
@@ -188,6 +201,7 @@ export default function App() {
           className="icon-button"
           onClick={() => setSidebarOpen((open) => !open)}
           aria-pressed={sidebarOpen}
+          aria-label="Table of contents"
           title="Table of contents (M)"
           disabled={!deck}
         >
@@ -219,6 +233,7 @@ export default function App() {
                 type="button"
                 className="icon-button"
                 onClick={() => setSearchOpen(true)}
+                aria-label="Search document"
                 title="Search (Ctrl/⌘ K)"
               >
                 <SearchIcon />
@@ -230,6 +245,7 @@ export default function App() {
                 type="button"
                 className="icon-button"
                 onClick={() => deckRef.current?.toggleOverview()}
+                aria-label="Slide overview"
                 title="Slide overview (Esc)"
               >
                 <GridIcon />
@@ -239,6 +255,7 @@ export default function App() {
                 className="icon-button"
                 onClick={() => setLineNumbers((value) => !value)}
                 aria-pressed={lineNumbers}
+                aria-label="Line numbers in code blocks"
                 title="Line numbers in code blocks"
               >
                 <HashIcon />
@@ -250,6 +267,7 @@ export default function App() {
             type="button"
             className="icon-button"
             onClick={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
+            aria-label="Toggle light or dark theme"
             title="Toggle theme (T)"
           >
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
@@ -260,6 +278,7 @@ export default function App() {
               type="button"
               className="icon-button"
               onClick={() => void openUrl(doc.url as string)}
+              aria-label="Reload from URL"
               title="Reload from URL"
               disabled={busy}
             >
@@ -271,6 +290,7 @@ export default function App() {
             type="button"
             className="icon-button"
             onClick={() => fileInputRef.current?.click()}
+            aria-label="Open a Markdown file"
             title="Open a Markdown file"
           >
             <FileIcon />
@@ -285,6 +305,7 @@ export default function App() {
                 setDoc(null)
                 storeDoc(null)
               }}
+              aria-label="Close document"
               title="Close document"
             >
               <CloseIcon />

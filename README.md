@@ -139,11 +139,11 @@ React components → Reveal.js
 
 No AI.
 
-No preprocessing.
-
 No proprietary format.
 
-Your Markdown file remains the single source of truth.
+The only transformations applied before parsing are deterministic and in memory: line endings
+are normalised, and documents whose Markdown punctuation was backslash-escaped by an exporter
+are repaired. Your file on disk is never modified, and it remains the single source of truth.
 
 ---
 
@@ -211,8 +211,10 @@ Slide bodies are converted to HTML only when they come within two slides of the 
 position, so a 12,000-line document opens in well under two seconds and navigates without
 lag. Rendered slides are cached for the lifetime of the document.
 
-Raw HTML embedded in a Markdown file is dropped rather than executed, so opening an untrusted
-document is safe.
+Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
+dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
+`[click](javascript:…)` link cannot fire. Remote images and links are still fetched or followed
+when you ask for them, exactly as in any Markdown viewer.
 
 ---
 

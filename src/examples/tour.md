@@ -92,8 +92,9 @@ whole point.
 ### Why no AI?
 
 Because summarisation changes the document. This tool only re-arranges what is
-already written, which means you can trust that nothing was invented, dropped or
-rephrased on the way to the screen.
+already written, so nothing is invented, reordered or rephrased on the way to the
+screen. Two deliberate exceptions: raw HTML embedded in the Markdown is dropped
+rather than executed, and unsafe link schemes are neutralised.
 
 ### Why Markdown stays the source
 

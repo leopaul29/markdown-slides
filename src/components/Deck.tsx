@@ -36,6 +36,8 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
 ) {
   const rootRef = useRef<HTMLDivElement>(null)
   const revealRef = useRef<RevealApi | null>(null)
+  /** A jump requested before Reveal finished initializing. */
+  const pendingIndex = useRef<number | null>(null)
   const htmlCache = useRef(new Map<number, string>())
   const [rendered, setRendered] = useState<Set<number>>(() => initialWindow(deck))
 
@@ -139,15 +141,24 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
       onSlideChangeRef.current(slide.index)
     }
 
+    // The ref is published only once Reveal is ready: navigation calls made
+    // before that (a TOC click during startup) would hit an uninitialized deck.
     void instance.initialize().then(() => {
       if (disposed) return
       instance.on('slidechanged', handleChange)
-      instance.on('ready', handleChange)
+      revealRef.current = instance
+
+      // Replay a jump requested while the deck was still starting up.
+      const pending = pendingIndex.current
+      pendingIndex.current = null
+      if (pending !== null && deck.slides[pending]) {
+        instance.slide(deck.slides[pending].h, deck.slides[pending].v)
+      }
+
       const { h, v } = instance.getIndices()
       handleChange({ indexh: h, indexv: v })
     })
 
-    revealRef.current = instance
     return () => {
       disposed = true
       revealRef.current = null
@@ -166,7 +177,8 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
         const slide = deck.slides[index]
         if (!slide) return
         preload(index)
-        revealRef.current?.slide(slide.h, slide.v)
+        if (revealRef.current) revealRef.current.slide(slide.h, slide.v)
+        else pendingIndex.current = index
       },
       next() {
         revealRef.current?.next()

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchDeck } from '../lib/search'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import type { Deck } from '../lib/slides'
 
 interface SearchPaletteProps {
@@ -8,11 +9,14 @@ interface SearchPaletteProps {
   onSelect: (slideIndex: number) => void
 }
 
+const RESULT_ID_PREFIX = 'search-result-'
+
 export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const paletteRef = useDialogFocus<HTMLDivElement>()
 
   const results = useMemo(() => searchDeck(deck, query), [deck, query])
 
@@ -58,22 +62,33 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
   return (
     <div
       className="overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Search document"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="palette" onKeyDown={onKeyDown}>
+      <div
+        ref={paletteRef}
+        className="palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search document"
+        onKeyDown={onKeyDown}
+      >
         <input
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search headings, text, lists and code…"
           aria-label="Search query"
+          role="combobox"
+          aria-expanded={results.length > 0}
+          aria-controls="search-results"
+          aria-activedescendant={
+            results.length > 0 ? `${RESULT_ID_PREFIX}${selected}` : undefined
+          }
+          autoComplete="off"
         />
-        <div className="palette-results" ref={listRef}>
+        <div className="palette-results" id="search-results" role="listbox" ref={listRef}>
           {query.trim() !== '' && results.length === 0 ? (
             <p className="muted" style={{ padding: '0.9rem' }}>
               No matches in this document.
@@ -83,6 +98,10 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
             <button
               type="button"
               key={`${result.slide.index}-${index}`}
+              id={`${RESULT_ID_PREFIX}${index}`}
+              role="option"
+              aria-selected={index === selected}
+              tabIndex={-1}
               className={`palette-result${index === selected ? ' selected' : ''}`}
               onMouseEnter={() => setSelected(index)}
               onClick={() => commit(index)}
@@ -117,7 +136,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
           <span>
             <span className="kbd">Esc</span> close
           </span>
-          <span style={{ marginLeft: 'auto' }}>
+          <span style={{ marginLeft: 'auto' }} aria-live="polite">
             {results.length} result{results.length === 1 ? '' : 's'}
           </span>
         </div>

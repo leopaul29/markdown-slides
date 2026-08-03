@@ -64,9 +64,22 @@ export async function readMarkdownFile(file: File): Promise<MarkdownDoc> {
   return { name: file.name, text, source: 'file' }
 }
 
-export async function fetchMarkdown(rawUrl: string): Promise<MarkdownDoc> {
+/** A server that accepts the connection and never answers must not hang the UI. */
+const FETCH_TIMEOUT_MS = 20_000
+
+export async function fetchMarkdown(rawUrl: string, signal?: AbortSignal): Promise<MarkdownDoc> {
   const url = toRawUrl(rawUrl.trim())
-  const response = await fetch(url)
+  const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  const abort = signal ? AbortSignal.any([signal, timeout]) : timeout
+
+  let response: Response
+  try {
+    response = await fetch(url, { signal: abort })
+  } catch (cause) {
+    if (timeout.aborted) throw new Error('That URL took too long to respond.')
+    throw cause
+  }
+
   if (!response.ok) {
     throw new Error(`Could not load that URL (HTTP ${response.status}).`)
   }

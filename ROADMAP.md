@@ -22,11 +22,12 @@ These hold for every version. If a feature breaks one of them, the feature is wr
 4. **No lock-in.** Plain `.md` in, standard web out. Deleting this tool costs the user
    nothing.
 
-One documented exception to (1)/(2): documents whose Markdown punctuation has been
-backslash-escaped by an exporter are repaired in memory before parsing (`normalize()` in
-`src/lib/markdown.ts`). The file on disk is never touched, and the repair is itself
-deterministic — but it is a transformation of the input, so it is called out explicitly
-rather than hidden.
+One behaviour worth stating explicitly, because it is easy to mistake for a violation:
+documents whose Markdown punctuation has been backslash-escaped by an exporter are repaired
+before parsing (`normalize()` in `src/lib/markdown.ts`). This happens in memory, it is a pure
+function of the input, and the file on disk is never touched — so both (1) and (2) hold. It is
+documented rather than hidden because it means the model is derived from a repaired copy of
+the source, not from the bytes verbatim.
 
 ---
 

@@ -11,6 +11,32 @@ export interface SearchResult {
 
 const SNIPPET_RADIUS = 60
 
+interface SearchableText {
+  text: string
+  lower: string
+  titleLower: string
+}
+
+/**
+ * Collapsing whitespace and lower-casing a whole document on every keystroke is
+ * the expensive part of searching, and the result never changes for a given
+ * slide — so it is derived once and kept for as long as the slide lives.
+ */
+const cache = new WeakMap<Slide, SearchableText>()
+
+function searchable(slide: Slide): SearchableText {
+  const cached = cache.get(slide)
+  if (cached) return cached
+  const text = slide.text.replace(/\s+/g, ' ').trim()
+  const derived: SearchableText = {
+    text,
+    lower: text.toLowerCase(),
+    titleLower: slide.title.toLowerCase(),
+  }
+  cache.set(slide, derived)
+  return derived
+}
+
 /**
  * Plain substring search over headings, paragraphs, lists, tables and code.
  * Linear over the slide list, which stays instant for documents far larger
@@ -24,19 +50,22 @@ export function searchDeck(deck: Deck, query: string, limit = 40): SearchResult[
   const bodyHits: SearchResult[] = []
 
   for (const slide of deck.slides) {
-    const titleMatch = slide.title.toLowerCase().includes(needle)
-    const result = matchInText(slide, needle, titleMatch)
+    const result = matchInSlide(slide, needle)
     if (!result) continue
-    ;(titleMatch ? titleHits : bodyHits).push(result)
-    if (titleHits.length + bodyHits.length >= limit * 2) break
+    if (result.titleMatch) titleHits.push(result)
+    else if (bodyHits.length < limit) bodyHits.push(result)
+    // Heading matches outrank body matches, so the scan may only stop once
+    // enough of them exist — otherwise a later title hit would be lost.
+    if (titleHits.length >= limit) break
   }
 
   return [...titleHits, ...bodyHits].slice(0, limit)
 }
 
-function matchInText(slide: Slide, needle: string, titleMatch: boolean): SearchResult | null {
-  const text = slide.text.replace(/\s+/g, ' ').trim()
-  const at = text.toLowerCase().indexOf(needle)
+function matchInSlide(slide: Slide, needle: string): SearchResult | null {
+  const { text, lower, titleLower } = searchable(slide)
+  const titleMatch = titleLower.includes(needle)
+  const at = lower.indexOf(needle)
 
   if (at === -1) {
     if (!titleMatch) return null
