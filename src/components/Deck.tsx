@@ -162,6 +162,8 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
     return () => {
       disposed = true
       revealRef.current = null
+      // A jump queued for this deck must not be replayed against the next one.
+      pendingIndex.current = null
       try {
         instance.destroy()
       } catch {

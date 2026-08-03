@@ -64,6 +64,12 @@ export default function App() {
    */
   const loadToken = useRef(0)
 
+  /** Invalidates any in-flight load, for actions that replace the document now. */
+  const cancelPendingLoad = useCallback(() => {
+    loadToken.current += 1
+    setBusy(false)
+  }, [])
+
   const openFile = useCallback(
     async (file: File) => {
       if (!isMarkdownFile(file)) {
@@ -302,6 +308,7 @@ export default function App() {
               type="button"
               className="icon-button"
               onClick={() => {
+                cancelPendingLoad()
                 setDoc(null)
                 storeDoc(null)
               }}
@@ -356,12 +363,14 @@ export default function App() {
               error={error}
               onFile={(file) => void openFile(file)}
               onUrl={(url) => void openUrl(url)}
-              onPaste={(text) =>
+              onPaste={(text) => {
+                cancelPendingLoad()
                 applyDoc({ name: 'Pasted Markdown', text, source: 'paste' })
-              }
-              onSample={() =>
+              }}
+              onSample={() => {
+                cancelPendingLoad()
                 applyDoc({ name: 'Guided tour.md', text: sampleMarkdown, source: 'sample' })
-              }
+              }}
             />
           </div>
         )}

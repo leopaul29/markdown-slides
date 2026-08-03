@@ -92,11 +92,22 @@ function walk(node: HastElement): void {
     if (attributes && properties) {
       for (const attribute of attributes) {
         const key = attribute === 'srcset' ? 'srcSet' : attribute
+        const isLink = node.tagName === 'a' || node.tagName === 'area'
         const value = properties[key]
-        if (typeof value !== 'string') continue
-        if (!isSafeUrl(value, node.tagName === 'a' || node.tagName === 'area')) {
-          delete properties[key]
+
+        // hast keeps `srcset` as a list of "url descriptor" candidates.
+        if (Array.isArray(value)) {
+          const safe = value.filter(
+            (candidate) =>
+              typeof candidate === 'string' && isSafeUrl(String(candidate).split(/\s+/)[0], isLink),
+          )
+          if (safe.length === 0) delete properties[key]
+          else properties[key] = safe
+          continue
         }
+
+        if (typeof value !== 'string') continue
+        if (!isSafeUrl(value, isLink)) delete properties[key]
       }
     }
   }

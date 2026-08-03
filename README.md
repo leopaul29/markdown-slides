@@ -213,8 +213,8 @@ lag. Rendered slides are cached for the lifetime of the document.
 
 Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
 dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
-`[click](javascript:…)` link cannot fire. Remote images and links are still fetched or followed
-when you ask for them, exactly as in any Markdown viewer.
+`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their slide
+renders; links are only followed when you activate them.
 
 ---
 
