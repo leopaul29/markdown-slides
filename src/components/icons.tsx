@@ -87,3 +87,10 @@ export const CloseIcon = (props: IconProps) => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </Svg>
 )
+
+export const WatchIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+    <circle cx="12" cy="12" r="3" />
+  </Svg>
+)

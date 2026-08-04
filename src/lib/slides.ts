@@ -1,5 +1,5 @@
 import type { Heading, Root, RootContent } from 'mdast'
-import { nodeText, parseMarkdown } from './markdown'
+import { nodeText, parseMarkdown, searchableText } from './markdown'
 
 export interface SlideHeading {
   depth: number
@@ -86,7 +86,7 @@ export function buildDeckFromRoot(root: Root, options: BuildOptions = {}): Deck 
         part: partIndex + 1,
         partCount: parts.length,
         nodes,
-        text: nodes.map((node) => nodeText(node)).join('\n'),
+        text: nodes.map((node) => searchableText(node)).join('\n'),
         headings: collectHeadings(nodes),
       }
       slides.push(slide)

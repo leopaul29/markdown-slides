@@ -14,11 +14,15 @@ import {
   RefreshIcon,
   SearchIcon,
   SunIcon,
+  WatchIcon,
 } from './components/icons'
 import { buildDeck } from './lib/slides'
 import {
+  canWatchFiles,
   fetchMarkdown,
   isMarkdownFile,
+  pickMarkdownFile,
+  readIfChanged,
   readMarkdownFile,
   readSetting,
   readStoredDoc,
@@ -29,6 +33,12 @@ import {
 import sampleMarkdown from './examples/tour.md?raw'
 
 type Theme = 'light' | 'dark'
+
+/** Reads a `#/12` fragment as a 1-based slide number. */
+function readHashIndex(): number | null {
+  const match = /^#\/(\d+)$/.exec(location.hash)
+  return match ? Number(match[1]) : null
+}
 
 export default function App() {
   const [doc, setDoc] = useState<MarkdownDoc | null>(() => readStoredDoc())
@@ -44,19 +54,36 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [watch, setWatch] = useState<{ handle: FileSystemFileHandle; lastModified: number } | null>(
+    null,
+  )
+  const [watching, setWatching] = useState(true)
+
   const deckRef = useRef<DeckHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  /** Slide requested by the URL fragment, consumed once the deck is built. */
+  const pendingHash = useRef<number | null>(readHashIndex())
 
   const deck = useMemo(() => (doc ? buildDeck(doc.text) : null), [doc])
   const currentSlide = deck?.slides[currentIndex]
 
-  const applyDoc = useCallback((next: MarkdownDoc) => {
+  const applyDoc = useCallback((next: MarkdownDoc, keepPosition = false) => {
     setDoc(next)
     storeDoc(next)
-    setCurrentIndex(0)
     setError(null)
     setSearchOpen(false)
+    if (keepPosition) {
+      // A live reload should land the reader back where they were reading.
+      pendingHash.current = currentIndexRef.current + 1
+    } else {
+      setCurrentIndex(0)
+    }
   }, [])
+
+  const currentIndexRef = useRef(0)
+  useEffect(() => {
+    currentIndexRef.current = currentIndex
+  }, [currentIndex])
 
   /*
    * A `?src=` fetch starts while the user can already drop a file, so loads can
@@ -70,6 +97,14 @@ export default function App() {
     setBusy(false)
   }, [])
 
+  const openWithPicker = useCallback(async () => {
+    const picked = await pickMarkdownFile()
+    if (!picked) return
+    loadToken.current += 1
+    setWatch({ handle: picked.handle, lastModified: picked.lastModified })
+    applyDoc(picked.doc)
+  }, [applyDoc])
+
   const openFile = useCallback(
     async (file: File) => {
       if (!isMarkdownFile(file)) {
@@ -81,6 +116,7 @@ export default function App() {
         setBusy(true)
         const loaded = await readMarkdownFile(file)
         if (token !== loadToken.current) return
+        setWatch(null)
         applyDoc(loaded)
       } catch {
         if (token === loadToken.current) setError(`Could not read “${file.name}”.`)
@@ -99,6 +135,7 @@ export default function App() {
         setError(null)
         const loaded = await fetchMarkdown(url)
         if (token !== loadToken.current) return
+        setWatch(null)
         applyDoc(loaded)
       } catch (cause) {
         if (token !== loadToken.current) return
@@ -123,6 +160,48 @@ export default function App() {
     const src = new URLSearchParams(location.search).get('src')
     if (src) void openUrl(src)
   }, [openUrl])
+
+  // A `#/12` fragment opens the document at that slide, so a position can be
+  // bookmarked or shared. Consumed once per deck, before any hash is written.
+  useEffect(() => {
+    if (!deck) return
+    const target = pendingHash.current
+    pendingHash.current = null
+    if (target !== null && target >= 1 && target <= deck.slides.length) {
+      goTo(target - 1)
+    }
+  }, [deck, goTo])
+
+  useEffect(() => {
+    if (!deck || pendingHash.current !== null) return
+    // `replaceState` keeps the back button useful for leaving the app.
+    history.replaceState(null, '', `#/${currentIndex + 1}`)
+  }, [deck, currentIndex])
+
+  /*
+   * Live reload: the File System Access API hands back a handle that can be
+   * re-read, so an edit in another window shows up without re-dropping the file.
+   * `lastModified` is polled because the platform has no change event.
+   */
+  useEffect(() => {
+    if (!watch || !watching) return
+    let stopped = false
+    const timer = setInterval(async () => {
+      try {
+        const changed = await readIfChanged(watch.handle, watch.lastModified)
+        if (stopped || !changed) return
+        setWatch({ handle: watch.handle, lastModified: changed.lastModified })
+        applyDoc(changed.doc, true)
+      } catch {
+        // Permission revoked or the file went away; stop watching quietly.
+        if (!stopped) setWatch(null)
+      }
+    }, 1000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [watch, watching, applyDoc])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -223,7 +302,7 @@ export default function App() {
               whiteSpace: 'nowrap',
             }}
           >
-            {doc?.name ?? 'Markdown Slides'}
+            {doc?.name ?? 'Markdown Reader'}
           </strong>
           {deck && currentSlide ? (
             <span className="muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
@@ -292,10 +371,23 @@ export default function App() {
             </button>
           ) : null}
 
+          {watch ? (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setWatching((value) => !value)}
+              aria-pressed={watching}
+              aria-label="Reload automatically when the file changes"
+              title={watching ? 'Watching the file for changes' : 'Not watching the file'}
+            >
+              <WatchIcon />
+            </button>
+          ) : null}
+
           <button
             type="button"
             className="icon-button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => (canWatchFiles() ? void openWithPicker() : fileInputRef.current?.click())}
             aria-label="Open a Markdown file"
             title="Open a Markdown file"
           >
@@ -309,6 +401,7 @@ export default function App() {
               className="icon-button"
               onClick={() => {
                 cancelPendingLoad()
+                setWatch(null)
                 setDoc(null)
                 storeDoc(null)
               }}
@@ -362,6 +455,7 @@ export default function App() {
               busy={busy}
               error={error}
               onFile={(file) => void openFile(file)}
+              onPick={canWatchFiles() ? () => void openWithPicker() : undefined}
               onUrl={(url) => void openUrl(url)}
               onPaste={(text) => {
                 cancelPendingLoad()

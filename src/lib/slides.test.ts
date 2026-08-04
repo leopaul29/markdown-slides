@@ -226,3 +226,22 @@ describe('search ranking', () => {
     expect(searchDeck(buildDeck(`# Doc\n\n${sections}`), 'widget', 10)).toHaveLength(10)
   })
 })
+
+describe('search text quality', () => {
+  it('separates table cells instead of welding them together', () => {
+    const deck = buildDeck('# T\n\n| Key | Action |\n| --- | --- |\n| Left | Previous slide |\n')
+    expect(deck.slides[0].text).toContain('Key | Action')
+    expect(deck.slides[0].text).toContain('Left | Previous slide')
+    expect(deck.slides[0].text).not.toContain('KeyAction')
+  })
+
+  it('keeps list items on separate lines', () => {
+    const deck = buildDeck('# T\n\n- first item\n- second item\n')
+    expect(deck.slides[0].text).not.toContain('first itemsecond item')
+  })
+
+  it('still indexes code and finds it', () => {
+    const deck = buildDeck('# T\n\n```ts\nconst widget = 1\n```\n')
+    expect(searchDeck(deck, 'widget')[0].match).toBe('widget')
+  })
+})

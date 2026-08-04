@@ -7,8 +7,8 @@ export interface MarkdownDoc {
   url?: string
 }
 
-const DOC_KEY = 'markdown-slides:doc'
-const SETTING_PREFIX = 'markdown-slides:'
+const DOC_KEY = 'markdown-reader:doc'
+const SETTING_PREFIX = 'markdown-reader:'
 /** Documents beyond this size are still shown, just not cached across reloads. */
 const MAX_PERSISTED_CHARS = 4_000_000
 
@@ -57,6 +57,55 @@ export function writeSetting(key: string, value: string): void {
 
 export function isMarkdownFile(file: File): boolean {
   return /\.(md|markdown|mdown|mkd|mdx|txt)$/i.test(file.name) || file.type === 'text/markdown'
+}
+
+/** True when the browser can hand back a re-readable handle (Chromium today). */
+export function canWatchFiles(): boolean {
+  return typeof window !== 'undefined' && 'showOpenFilePicker' in window
+}
+
+interface PickedFile {
+  doc: MarkdownDoc
+  handle: FileSystemFileHandle
+  lastModified: number
+}
+
+/**
+ * Opens a file through the File System Access API, which — unlike an `<input>`
+ * — yields a handle the app can re-read later to pick up edits.
+ */
+export async function pickMarkdownFile(): Promise<PickedFile | null> {
+  const picker = (window as unknown as {
+    showOpenFilePicker: (options: unknown) => Promise<FileSystemFileHandle[]>
+  }).showOpenFilePicker
+  let handles: FileSystemFileHandle[]
+  try {
+    handles = await picker({
+      types: [
+        {
+          description: 'Markdown',
+          accept: { 'text/markdown': ['.md', '.markdown', '.mdown', '.mkd', '.mdx', '.txt'] },
+        },
+      ],
+      multiple: false,
+    })
+  } catch {
+    return null // the user dismissed the picker
+  }
+  const handle = handles[0]
+  if (!handle) return null
+  const file = await handle.getFile()
+  return { doc: await readMarkdownFile(file), handle, lastModified: file.lastModified }
+}
+
+/** Re-reads a watched file, returning null when it has not changed. */
+export async function readIfChanged(
+  handle: FileSystemFileHandle,
+  since: number,
+): Promise<{ doc: MarkdownDoc; lastModified: number } | null> {
+  const file = await handle.getFile()
+  if (file.lastModified <= since) return null
+  return { doc: await readMarkdownFile(file), lastModified: file.lastModified }
 }
 
 export async function readMarkdownFile(file: File): Promise<MarkdownDoc> {

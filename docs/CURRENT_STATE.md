@@ -2,7 +2,7 @@
 
 ## Objective
 
-Markdown Slides is a local, deterministic reader that turns any Markdown document into a
+Markdown Reader is a local, deterministic reader that turns any Markdown document into a
 navigable slide deck. v1 (presentation view) is the shipped scope; the agreed direction is to
 grow it into a read-only Markdown reader with several interchangeable views, with the engine
 extracted in V2 alongside a second view rather than before one exists.
@@ -51,9 +51,9 @@ None. PR #2 needs a merge, not a decision.
 - **Reveal-shaped model.** `Slide.h`, `Slide.v` and `Deck.columns` are Reveal coordinates, and
   `nodesToHtml` sits next to the parser. These are the leaks to unpick before a second view;
   roughly an hour of work, cheap now and progressively less so.
-- **Naming.** "Markdown Slides" constrains the multi-view ambition. The rename cost is at its
-  minimum right now — no users, no package, no circulating Pages URL.
-- **Bundle size.** 206 kB gzipped, mostly `highlight.js` grammars.
+- **Repo name still `markdown-slides`.** The product is now Markdown Reader in the app, the
+  package and the docs, but the GitHub repository and its Pages URL keep the old slug. Renaming
+  the repo is a one-click change that also updates `BASE_PATH` automatically.
 - **Second view is unproven.** The roadmap's abstractions are justified by Book View existing;
   if it never ships, the current direct structure is the right one.
 
@@ -62,7 +62,8 @@ None. PR #2 needs a merge, not a decision.
 1. Merge PR #2.
 2. Commit `docs/DECISIONS.md`, `docs/LESSONS.md` and this snapshot — the container is
    ephemeral, so anything uncommitted is lost.
-3. Decide the name, since the cost only rises from here.
+3. Rename the GitHub repository to match (`markdown-reader`); the deploy workflow derives
+   `BASE_PATH` from the repo name, so nothing else needs editing.
 4. Close the remaining v1 polish: deep links (`hash`), live reload via the File System Access
    API, table-cell separators in search snippets, and trimming the highlight.js language set.
 5. When starting V2: write the `fixed-length` strategy first, then extract the strategy

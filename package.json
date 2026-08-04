@@ -1,5 +1,5 @@
 {
-  "name": "markdown-slides",
+  "name": "markdown-reader",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -15,10 +15,11 @@
   },
   "dependencies": {
     "hast-util-to-html": "^9.0.5",
+    "highlight.js": "^11.11.1",
+    "lowlight": "^3.3.0",
     "mdast-util-to-string": "^4.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "rehype-highlight": "^7.0.2",
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",

@@ -1,4 +1,4 @@
-# Markdown Slides
+# Markdown Reader
 
 A guided tour of the reader you are currently looking at.
 
