@@ -1,8 +1,8 @@
-# Markdown Slides
+# Markdown Reader
 
 > Turn any Markdown document into a beautiful, navigable HTML presentation.
 
-Markdown Slides is an open-source tool that converts Markdown into an interactive slide deck.
+Markdown Reader is an open-source tool that converts Markdown into an interactive slide deck.
 Instead of scrolling through thousands of lines, browse your document one section at a time.
 
 Designed for developers, technical writers, and anyone reading long Markdown documents.
@@ -23,7 +23,7 @@ AI coding assistants increasingly generate large Markdown documents:
 
 These documents are easy to generate but often difficult to read.
 
-Markdown Slides makes them enjoyable to explore.
+Markdown Reader makes them enjoyable to explore.
 
 ---
 
@@ -40,6 +40,8 @@ Markdown Slides makes them enjoyable to explore.
 * 🖼️ Responsive images with fullscreen preview
 * 📊 Scrollable tables
 * 📱 Responsive layout
+* 🔄 Live reload — edit the file in your editor and the view follows
+* 🔗 Shareable `#/12` links to any slide
 * 🔒 Runs entirely in your browser — nothing is uploaded
 
 ---
@@ -79,7 +81,15 @@ There are four ways to load Markdown:
   GitHub `blob` links are rewritten to their raw equivalent automatically. Remote files must
   be served with permissive CORS headers.
 
-The last document you opened is restored when you reload the page.
+The last document you opened is restored when you reload the page, and the URL carries the
+slide you are on (`#/12`), so a position can be bookmarked or shared.
+
+### Live reload
+
+In Chromium-based browsers the *Open* button uses the File System Access API, which hands the
+app a handle it can re-read. The file is polled once a second, so editing it in another window
+updates the deck and keeps your place. Toggle it with the eye button in the toolbar. Other
+browsers fall back to the normal file picker, without watching.
 
 ---
 
@@ -194,7 +204,7 @@ src/
     slides.ts     Deterministic slide builder + table of contents
     search.ts     Full-document search
     enhance.ts    Table wrappers, code chrome, line numbers
-    document.ts   File / URL loading and persistence
+    document.ts   File / URL loading, watching and persistence
   components/
     Deck.tsx      Reveal.js integration and lazy slide rendering
     Sidebar.tsx   Table of contents
@@ -211,16 +221,20 @@ Slide bodies are converted to HTML only when they come within two slides of the 
 position, so a 12,000-line document opens in well under two seconds and navigates without
 lag. Rendered slides are cached for the lifetime of the document.
 
+Syntax highlighting drives `lowlight` directly with an explicit language list rather than
+`rehype-highlight`, whose default import pulls in every common highlight.js grammar. The
+production bundle is 192 kB gzipped.
+
 Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
 dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
-`[click](javascript:…)` link cannot fire. Remote images and links are still fetched or followed
-when you ask for them, exactly as in any Markdown viewer.
+`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their slide
+renders; links are only followed when you activate them.
 
 ---
 
 ## Philosophy
 
-Markdown Slides is **not** another presentation editor.
+Markdown Reader is **not** another presentation editor.
 
 Write your content in Markdown using your favorite editor.
 

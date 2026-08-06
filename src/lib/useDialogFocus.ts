@@ -28,7 +28,8 @@ export function useDialogFocus<T extends HTMLElement>(active = true) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Tab') return
       const targets = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (element) => element.offsetParent !== null || element === document.activeElement,
+        // `offsetParent` is null for fixed-position elements, which are visible.
+        (element) => element.getClientRects().length > 0 || element === document.activeElement,
       )
       if (targets.length === 0) {
         event.preventDefault()
@@ -49,7 +50,16 @@ export function useDialogFocus<T extends HTMLElement>(active = true) {
     container.addEventListener('keydown', onKeyDown)
     return () => {
       container.removeEventListener('keydown', onKeyDown)
-      previous?.focus?.()
+      /*
+       * Restore the opener, but do not fight a focus move the dialog action
+       * made on purpose. By the time this cleanup runs React has already
+       * detached the dialog, so focus has fallen back to <body> in the ordinary
+       * close case — anything more specific than that means something else
+       * deliberately claimed it.
+       */
+      const active = document.activeElement
+      const focusWasReleased = active === null || active === document.body
+      if (focusWasReleased || container.contains(active)) previous?.focus?.()
     }
   }, [active])
 

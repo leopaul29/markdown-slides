@@ -44,18 +44,23 @@ The deterministic engine plus one view.
 * Verified on a 12,800-line document: 1,040 slides, ~1.7 s to first paint, lazy body
   rendering keeps navigation instant
 
-### Remaining v1 polish
+### v1 polish ✅ done
 
-Small, user-visible gaps worth closing before starting v2:
+* **Deep links** — the URL carries `#/12`; reloading or sharing it opens that slide
+* **Live reload** — files opened through the File System Access API are polled once a second
+  and re-read on change, keeping the reader's position (Chromium; other browsers fall back to
+  the plain picker)
+* **Search snippets** — table cells join with ` | ` and blocks with newlines, so results are
+  readable instead of welded together
+* **Bundle size** — 206 kB → 192 kB gzipped by driving `lowlight` with an explicit language
+  list instead of `rehype-highlight`, whose entry point statically imports every common grammar
 
-* **Deep links** — `#/12` style URLs so a slide can be shared or bookmarked
-  (Reveal's `hash` option is currently off)
-* **Live reload** — re-read the same file on change via the File System Access API, so
-  editing in another window updates the view without re-dropping the file
-* **Search quality** — currently plain substring matching; table cells flatten without
-  separators, which makes some snippets hard to read
-* **Bundle size** — 206 kB gzipped, most of it `highlight.js` grammars; worth trimming the
-  language set or loading grammars on demand
+### Still open from v1
+
+* **Search is plain substring matching** — no fuzzy matching, ranking beyond "headings first",
+  or multi-term queries
+* **Watching is picker-only** — a dropped file cannot be watched; Chromium's
+  `getAsFileSystemHandle()` on the drop event would close that gap
 
 ---
 

@@ -129,6 +129,10 @@ future feature arguments.
 
 ## On the name
 
+> **Resolved 2026-08-03: renamed to Markdown Reader.** The section below is kept as the
+> reasoning that led there; "Markdown Slides" was the name at the time of writing.
+
+
 My honest read: **rename now or accept the name for good.** The cost curve is steep and you
 are at its cheapest point — one implementation commit, no users, no npm package, no domain,
 no Pages URL in circulation, no inbound links. In six months a rename means the repo URL, the

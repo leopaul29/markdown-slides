@@ -5,12 +5,24 @@ interface WelcomeProps {
   busy: boolean
   error: string | null
   onFile: (file: File) => void
+  /** Present when the browser can open a file the app is able to watch. */
+  onPick?: () => void
   onUrl: (url: string) => void
   onPaste: (text: string) => void
   onSample: () => void
 }
 
-export function Welcome({ dragging, busy, error, onFile, onUrl, onPaste, onSample }: WelcomeProps) {
+export function Welcome({
+  dragging,
+  busy,
+  error,
+  onFile,
+  onPick,
+  onUrl,
+  onPaste,
+  onSample,
+}: WelcomeProps) {
+  const open = () => (onPick ? onPick() : fileInput.current?.click())
   const fileInput = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
   const [pasteOpen, setPasteOpen] = useState(false)
@@ -20,7 +32,7 @@ export function Welcome({ dragging, busy, error, onFile, onUrl, onPaste, onSampl
     <div className="welcome">
       <div className="welcome-card">
         <h1 style={{ fontSize: '2.2rem', fontWeight: 700, letterSpacing: '-0.03em', margin: 0 }}>
-          Markdown Slides
+          Markdown Reader
         </h1>
         <p className="muted" style={{ marginTop: '0.6rem' }}>
           Drop a Markdown file to explore it as a navigable slide deck. Everything runs locally in
@@ -29,11 +41,11 @@ export function Welcome({ dragging, busy, error, onFile, onUrl, onPaste, onSampl
 
         <div
           className={`dropzone${dragging ? ' dragging' : ''}`}
-          onClick={() => fileInput.current?.click()}
+          onClick={open}
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') fileInput.current?.click()
+            if (event.key === 'Enter' || event.key === ' ') open()
           }}
         >
           <p style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>
