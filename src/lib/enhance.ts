@@ -1,3 +1,5 @@
+import { languageFromClasses } from './markdown'
+
 /**
  * Progressive enhancement applied to rendered slide HTML: scrollable tables,
  * code block chrome and safe external links. Idempotent: re-running it on an
@@ -20,7 +22,7 @@ export function enhanceSlideBody(root: HTMLElement): void {
     block.appendChild(pre)
 
     const code = pre.querySelector('code')
-    const language = findLanguage(code)
+    const language = code ? languageFromClasses(code.classList) : null
     if (language) {
       const badge = document.createElement('span')
       badge.className = 'code-lang'
@@ -59,12 +61,4 @@ export function applyLineNumbers(root: HTMLElement, enabled: boolean): void {
     gutter.textContent = Array.from({ length: lines }, (_, i) => String(i + 1)).join('\n')
     block.appendChild(gutter)
   }
-}
-
-function findLanguage(code: Element | null): string | null {
-  if (!code) return null
-  for (const cls of Array.from(code.classList)) {
-    if (cls.startsWith('language-')) return cls.slice('language-'.length)
-  }
-  return null
 }

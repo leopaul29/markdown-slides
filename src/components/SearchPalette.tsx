@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { searchDeck } from '../lib/search'
+import { searchDeck, type SearchSegment } from '../lib/search'
 import { useDialogFocus } from '../lib/useDialogFocus'
 import type { Deck } from '../lib/slides'
 
@@ -10,6 +10,21 @@ interface SearchPaletteProps {
 }
 
 const RESULT_ID_PREFIX = 'search-result-'
+
+/** Renders pre-split text, so a match is highlighted without building HTML. */
+function Highlighted({ segments }: { segments: SearchSegment[] }) {
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.match ? (
+          <mark key={index}>{segment.text}</mark>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </>
+  )
+}
 
 export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
   const [query, setQuery] = useState('')
@@ -78,7 +93,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search headings, text, lists and code…"
+          placeholder="Search… several words narrow, &quot;quoted&quot; matches exactly"
           aria-label="Search query"
           role="combobox"
           aria-expanded={results.length > 0}
@@ -110,7 +125,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
                 {result.slide.group ? (
                   <span className="muted">{result.slide.group} › </span>
                 ) : null}
-                {result.slide.title || 'Overview'}
+                {result.title.length > 0 ? <Highlighted segments={result.title} /> : 'Overview'}
                 {result.slide.partCount > 1 ? (
                   <span className="muted">
                     {' '}
@@ -119,9 +134,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
                 ) : null}
               </span>
               <span className="result-snippet">
-                {result.before}
-                {result.match ? <mark>{result.match}</mark> : null}
-                {result.after}
+                <Highlighted segments={result.snippet} />
               </span>
             </button>
           ))}

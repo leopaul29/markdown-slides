@@ -84,3 +84,76 @@
   fallen back to `<body>`.
 - Keep a scratch harness that loads a hostile document (unsafe schemes, embedded script, huge
   code blocks) and assert on it after any change to the render pipeline.
+
+---
+
+## 2026-08-08
+
+## What Worked
+
+- Auditing every exported symbol against its call sites before trusting that it is load-bearing.
+  One pass of "grep this name, count the hits that are not the definition" found a model field, a
+  result field, a type union and two exports that existed only for a test or for nobody.
+- Checking whether a dependency is *used*, not just installed. Grepping for utility classes and
+  framework directives — rather than for the import — is what showed a CSS framework contributing
+  nothing but its reset.
+- Deriving redundant state at the boundary that needs it instead of storing it. Asking "what
+  already determines this value?" turned two model fields into one four-line helper in the file
+  that talks to the renderer.
+- Running a tool's installer from its local plugin cache instead of piping a remote script into an
+  interpreter. Same script, no fetch-and-execute.
+- Using an installer's `--dry-run` before letting it write, and reading the "0 overwritten" line
+  as the go-ahead.
+
+## What Did Not Work
+
+- Writing a long prose document through a shell heredoc. Apostrophes inside the body broke the
+  outer quoting and the whole append failed; a file-writing tool has none of that surface.
+- Ignoring an agent-config directory wholesale. The same directory holds both personal settings
+  and project-shared workflow files, so a directory-level rule is always wrong in one direction —
+  it needs to name the files, not the folder.
+
+## Surprises
+
+- A strict, non-flat `node_modules` (pnpm) breaks type-only imports that a flat one silently
+  satisfied. Types that arrived transitively through a parser library stopped resolving and had to
+  become explicit devDependencies — the migration cost is proportional to how much the project was
+  relying on hoisting.
+- A `<dialog>` styled with a bare `display: flex` is permanently visible: the rule overrides the
+  user-agent's `display: none`, so modal display rules must be scoped to `[open]`.
+- Deleting a project's plugin settings file also silently disables the plugins for that project.
+  The setting has to be *relocated* to user level, not removed.
+- A CSS framework can be fully installed, imported and building, with literally zero of its
+  utilities in the codebase.
+
+## Reusable Insights
+
+- Separate personal-style agent configuration from project-workflow agent configuration. Style
+  rules (how prose reads, how reviews are worded) belong in the user's own config; workflow skills
+  that encode where a project keeps its records belong in the repository. "Agent config in or out
+  of git" is the wrong question.
+- Redundant fields in a data model are a coupling claim, not just duplication. Coordinates named
+  after one renderer's axes assert that every future consumer has those axes. Derive them where
+  the renderer is, and the model stops making the claim.
+- A tree whose rendering is flat is not a tree. Delete the nesting and let the view that actually
+  wants hierarchy rebuild it from the level field.
+- Before deleting a dependency, list what it silently provides beyond its headline feature. A CSS
+  framework also ships a reset; dropping it means owning the handful of rules that were doing real
+  work.
+- When cutting a field the UI never reads, check the test suite first. If a test uses it as its
+  probe, either keep the field or strengthen the assertion in the same edit — otherwise the
+  cleanup quietly weakens the suite.
+- Native platform elements have usually absorbed the behaviour a hand-built component is
+  reimplementing. A modal with no interactive content needs no custom focus trap.
+- Prefer one pinned declaration of a tool's version that every consumer reads (a `packageManager`
+  field the CI action also honours) over the same version repeated in setup steps.
+
+## Future Improvements
+
+- After removing a styling framework or swapping a component onto a platform primitive, drive the
+  app in a browser before reporting it done. Type-check, unit tests and a green build say nothing
+  about whether the page still looks right.
+- When narrowing a `.gitignore` rule, run `git check-ignore -v` against a file you intend to keep.
+  It answers "which rule is eating this?" directly instead of by inspection.
+- Prefer an editor tool over shell redirection for any multi-paragraph text; reserve the shell for
+  commands whose output you need.

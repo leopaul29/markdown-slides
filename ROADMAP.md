@@ -54,13 +54,19 @@ The deterministic engine plus one view.
   readable instead of welded together
 * **Bundle size** — 206 kB → 192 kB gzipped by driving `lowlight` with an explicit language
   list instead of `rehype-highlight`, whose entry point statically imports every common grammar
+* **Ranked, multi-term, fuzzy search** — whitespace separates terms and every term must match,
+  `"quoted phrases"` are literal, and titles also accept a subsequence match so `authn` finds
+  "Authentication" and `adr` finds "Architecture Decision Records". Results are scored (title
+  over body, word-start over mid-word, exact over fuzzy, terms in one passage over scattered
+  ones) and ties keep document order, so the same query always returns the same list. Bodies
+  are matched literally only: in a long paragraph a subsequence match means nothing
+* **Watching a dropped file** — `getAsFileSystemHandle()` is claimed on the drop event, so a
+  dropped file live-reloads exactly like one opened through the picker (Chromium; elsewhere the
+  drop still loads, just without watching)
 
 ### Still open from v1
 
-* **Search is plain substring matching** — no fuzzy matching, ranking beyond "headings first",
-  or multi-term queries
-* **Watching is picker-only** — a dropped file cannot be watched; Chromium's
-  `getAsFileSystemHandle()` on the drop event would close that gap
+Nothing. The v1 scope and its polish are complete.
 
 ---
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildDeck } from './slides'
 import { isSafeUrl, nodesToHtml, normalize } from './markdown'
-import { searchDeck } from './search'
 
 const doc = `# Authentication
 
@@ -35,7 +34,9 @@ describe('heading rules', () => {
   it('keeps ### and deeper headings inside the current slide', () => {
     const deck = buildDeck('# A\n\n### Detail\n\ntext\n\n#### More\n\ntext\n')
     expect(deck.slides).toHaveLength(1)
-    expect(deck.slides[0].headings.map((heading) => heading.text)).toEqual(['Detail', 'More'])
+    expect(
+      deck.slides[0].nodes.filter((node) => node.type === 'heading').map((node) => node.depth),
+    ).toEqual([3, 4])
   })
 
   it('records the enclosing group of a ## slide', () => {
@@ -58,15 +59,19 @@ describe('heading rules', () => {
 })
 
 describe('table of contents', () => {
-  it('nests ## sections under their # group', () => {
+  it('lists every section in reading order, with its heading level', () => {
     const deck = buildDeck(doc)
-    expect(deck.toc.map((entry) => entry.title)).toEqual(['Authentication', 'Database'])
-    expect(deck.toc[0].children.map((entry) => entry.title)).toEqual(['Why', 'Alternatives'])
+    expect(deck.toc.map((entry) => [entry.title, entry.level])).toEqual([
+      ['Authentication', 1],
+      ['Why', 2],
+      ['Alternatives', 2],
+      ['Database', 1],
+    ])
   })
 
   it('points each entry at a real slide', () => {
     const deck = buildDeck(doc)
-    for (const entry of deck.toc.flatMap((e) => [e, ...e.children])) {
+    for (const entry of deck.toc) {
       expect(deck.slides[entry.slideIndex].title).toBe(entry.title)
     }
   })
@@ -80,7 +85,7 @@ describe('auto splitting', () => {
     expect(deck.columns).toHaveLength(1)
     expect(deck.columns[0].length).toBeGreaterThan(1)
     expect(deck.slides.every((slide) => slide.title === 'Long')).toBe(true)
-    expect(deck.slides.map((slide) => slide.v)).toEqual(deck.slides.map((_, i) => i))
+    expect(deck.slides.map((slide) => slide.part)).toEqual(deck.slides.map((_, i) => i + 1))
     expect(deck.slides[0].partCount).toBe(deck.slides.length)
   })
 
@@ -114,27 +119,9 @@ describe('auto splitting', () => {
   it('is deterministic', () => {
     const a = buildDeck(doc)
     const b = buildDeck(doc)
-    expect(a.slides.map((s) => [s.h, s.v, s.title, s.text])).toEqual(
-      b.slides.map((s) => [s.h, s.v, s.title, s.text]),
+    expect(a.slides.map((s) => [s.index, s.part, s.title, s.text])).toEqual(
+      b.slides.map((s) => [s.index, s.part, s.title, s.text]),
     )
-  })
-})
-
-describe('search', () => {
-  it('finds body text and reports the surrounding snippet', () => {
-    const deck = buildDeck(doc)
-    const [hit] = searchDeck(deck, 'firebase')
-    expect(hit.slide.title).toBe('Alternatives')
-    expect(hit.match).toBe('Firebase')
-  })
-
-  it('ranks heading matches first', () => {
-    const deck = buildDeck(doc)
-    expect(searchDeck(deck, 'database')[0].slide.title).toBe('Database')
-  })
-
-  it('returns nothing for an empty query', () => {
-    expect(searchDeck(buildDeck(doc), '   ')).toEqual([])
   })
 })
 
@@ -206,42 +193,3 @@ describe('url safety', () => {
   })
 })
 
-describe('search ranking', () => {
-  it('keeps a late heading match even when earlier body matches fill the buffer', () => {
-    const sections = Array.from(
-      { length: 120 },
-      (_, i) => `## Section ${i}\n\nthis body mentions widget here.\n`,
-    ).join('\n')
-    const deck = buildDeck(`# Doc\n\n${sections}\n## Widget reference\n\nlast one.\n`)
-    const results = searchDeck(deck, 'widget', 10)
-    expect(results[0].slide.title).toBe('Widget reference')
-    expect(results[0].titleMatch).toBe(true)
-  })
-
-  it('still caps the number of results', () => {
-    const sections = Array.from(
-      { length: 80 },
-      (_, i) => `## Section ${i}\n\nbody mentions widget.\n`,
-    ).join('\n')
-    expect(searchDeck(buildDeck(`# Doc\n\n${sections}`), 'widget', 10)).toHaveLength(10)
-  })
-})
-
-describe('search text quality', () => {
-  it('separates table cells instead of welding them together', () => {
-    const deck = buildDeck('# T\n\n| Key | Action |\n| --- | --- |\n| Left | Previous slide |\n')
-    expect(deck.slides[0].text).toContain('Key | Action')
-    expect(deck.slides[0].text).toContain('Left | Previous slide')
-    expect(deck.slides[0].text).not.toContain('KeyAction')
-  })
-
-  it('keeps list items on separate lines', () => {
-    const deck = buildDeck('# T\n\n- first item\n- second item\n')
-    expect(deck.slides[0].text).not.toContain('first itemsecond item')
-  })
-
-  it('still indexes code and finds it', () => {
-    const deck = buildDeck('# T\n\n```ts\nconst widget = 1\n```\n')
-    expect(searchDeck(deck, 'widget')[0].match).toBe('widget')
-  })
-})

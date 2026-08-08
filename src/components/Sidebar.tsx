@@ -1,4 +1,4 @@
-import type { Deck, TocEntry } from '../lib/slides'
+import type { Deck } from '../lib/slides'
 
 interface SidebarProps {
   deck: Deck
@@ -16,53 +16,27 @@ export function Sidebar({ deck, currentIndex, open, onSelect }: SidebarProps) {
       >
         CONTENTS
       </p>
-      {deck.toc.map((entry) => (
-        <TocNode
-          key={entry.slideIndex}
-          entry={entry}
-          currentIndex={currentIndex}
-          slides={deck.slides}
-          onSelect={onSelect}
-        />
-      ))}
+      {deck.toc.map((entry) => {
+        // A section stays highlighted while the reader is on any of its parts,
+        // which follow its first slide in reading order.
+        const first = deck.slides[entry.slideIndex]
+        const active =
+          first !== undefined &&
+          currentIndex >= entry.slideIndex &&
+          currentIndex < entry.slideIndex + first.partCount
+
+        return (
+          <button
+            key={entry.slideIndex}
+            type="button"
+            className={`toc-item level-${Math.max(entry.level, 1)}${active ? ' active' : ''}`}
+            onClick={() => onSelect(entry.slideIndex)}
+            aria-current={active ? 'true' : undefined}
+          >
+            {entry.title}
+          </button>
+        )
+      })}
     </nav>
-  )
-}
-
-function TocNode({
-  entry,
-  currentIndex,
-  slides,
-  onSelect,
-}: {
-  entry: TocEntry
-  currentIndex: number
-  slides: Deck['slides']
-  onSelect: (slideIndex: number) => void
-}) {
-  // A section stays highlighted while the reader is on any of its parts.
-  const current = slides[currentIndex]
-  const active = current !== undefined && current.h === slides[entry.slideIndex]?.h
-
-  return (
-    <>
-      <button
-        type="button"
-        className={`toc-item level-${Math.max(entry.level, 1)}${active ? ' active' : ''}`}
-        onClick={() => onSelect(entry.slideIndex)}
-        aria-current={active ? 'true' : undefined}
-      >
-        {entry.title}
-      </button>
-      {entry.children.map((child) => (
-        <TocNode
-          key={child.slideIndex}
-          entry={child}
-          currentIndex={currentIndex}
-          slides={slides}
-          onSelect={onSelect}
-        />
-      ))}
-    </>
   )
 }

@@ -1,17 +1,9 @@
 import type { Heading, Root, RootContent } from 'mdast'
 import { nodeText, parseMarkdown, searchableText } from './markdown'
 
-export interface SlideHeading {
-  depth: number
-  text: string
-}
-
 export interface Slide {
   /** Index in `deck.slides`, i.e. reading order. */
   index: number
-  /** Reveal.js coordinates: `h` is the section, `v` the continuation part. */
-  h: number
-  v: number
   /** Title shown in the slide header and the table of contents. */
   title: string
   /** Title of the enclosing `#` group, for breadcrumb context on `##` slides. */
@@ -25,15 +17,13 @@ export interface Slide {
   nodes: RootContent[]
   /** Flattened text, used by search. */
   text: string
-  /** `###`+ headings living inside this slide. */
-  headings: SlideHeading[]
 }
 
 export interface TocEntry {
   title: string
   level: number
+  /** First slide of the section; its parts follow it in reading order. */
   slideIndex: number
-  children: TocEntry[]
 }
 
 export interface Deck {
@@ -61,12 +51,8 @@ interface Section {
 }
 
 export function buildDeck(markdown: string, options: BuildOptions = {}): Deck {
-  return buildDeckFromRoot(parseMarkdown(markdown), options)
-}
-
-export function buildDeckFromRoot(root: Root, options: BuildOptions = {}): Deck {
   const maxWeight = options.maxWeight ?? DEFAULT_MAX_WEIGHT
-  const sections = splitIntoSections(root)
+  const sections = splitIntoSections(parseMarkdown(markdown))
   const slides: Slide[] = []
   const columns: Slide[][] = []
   let group = ''
@@ -78,8 +64,6 @@ export function buildDeckFromRoot(root: Root, options: BuildOptions = {}): Deck 
     for (const [partIndex, nodes] of parts.entries()) {
       const slide: Slide = {
         index: slides.length,
-        h: columns.length,
-        v: partIndex,
         title: section.title,
         group: section.level === 1 ? '' : group,
         level: section.level,
@@ -87,7 +71,6 @@ export function buildDeckFromRoot(root: Root, options: BuildOptions = {}): Deck 
         partCount: parts.length,
         nodes,
         text: nodes.map((node) => searchableText(node)).join('\n'),
-        headings: collectHeadings(nodes),
       }
       slides.push(slide)
       column.push(slide)
@@ -181,7 +164,7 @@ function rebalanceOrphanHeadings(parts: RootContent[][]): RootContent[][] {
 }
 
 /** Rough height of a block in rendered lines. Deterministic, no measurement. */
-export function weightOf(node: RootContent): number {
+function weightOf(node: RootContent): number {
   switch (node.type) {
     case 'code':
       return countLines(node.value) + 2
@@ -236,29 +219,14 @@ function headingText(node: Heading): string {
   return nodeText(node).trim() || 'Untitled'
 }
 
-function collectHeadings(nodes: RootContent[]): SlideHeading[] {
-  return nodes
-    .filter((node): node is Heading => node.type === 'heading')
-    .map((node) => ({ depth: node.depth, text: headingText(node) }))
-}
-
+/** One entry per section, in reading order. Depth is carried by `level`. */
 function buildToc(columns: Slide[][]): TocEntry[] {
-  const toc: TocEntry[] = []
-  for (const column of columns) {
-    const slide = column[0]
-    if (!slide) continue
-    const entry: TocEntry = {
+  return columns
+    .map((column) => column[0])
+    .filter((slide): slide is Slide => slide !== undefined)
+    .map((slide) => ({
       title: slide.title || 'Overview',
       level: slide.level,
       slideIndex: slide.index,
-      children: [],
-    }
-    const parent = toc[toc.length - 1]
-    if (slide.level === 2 && parent && parent.level <= 1) {
-      parent.children.push(entry)
-    } else {
-      toc.push(entry)
-    }
-  }
-  return toc
+    }))
 }

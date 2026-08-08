@@ -15,8 +15,6 @@ import { applyLineNumbers, enhanceSlideBody } from '../lib/enhance'
 
 export interface DeckHandle {
   goTo(index: number): void
-  next(): void
-  prev(): void
   toggleOverview(): void
 }
 
@@ -151,8 +149,10 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
       // Replay a jump requested while the deck was still starting up.
       const pending = pendingIndex.current
       pendingIndex.current = null
-      if (pending !== null && deck.slides[pending]) {
-        instance.slide(deck.slides[pending].h, deck.slides[pending].v)
+      const pendingSlide = pending !== null ? deck.slides[pending] : undefined
+      if (pendingSlide) {
+        const [h, v] = coordsOf(deck, pendingSlide)
+        instance.slide(h, v)
       }
 
       const { h, v } = instance.getIndices()
@@ -179,14 +179,9 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
         const slide = deck.slides[index]
         if (!slide) return
         preload(index)
-        if (revealRef.current) revealRef.current.slide(slide.h, slide.v)
+        const [h, v] = coordsOf(deck, slide)
+        if (revealRef.current) revealRef.current.slide(h, v)
         else pendingIndex.current = index
-      },
-      next() {
-        revealRef.current?.next()
-      },
-      prev() {
-        revealRef.current?.prev()
       },
       toggleOverview() {
         revealRef.current?.toggleOverview()
@@ -249,6 +244,15 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
     </div>
   )
 })
+
+/**
+ * Reveal's horizontal / vertical coordinates for a slide. The model does not
+ * carry them: a section is one column, and its parts stack inside it.
+ */
+function coordsOf(deck: DeckModel, slide: Slide): [number, number] {
+  const h = deck.columns.findIndex((column) => column[0]?.index === slide.index - (slide.part - 1))
+  return [Math.max(h, 0), slide.part - 1]
+}
 
 function bodies(root: HTMLElement | null): HTMLElement[] {
   return root ? Array.from(root.querySelectorAll<HTMLElement>('.slide-body')) : []

@@ -1,9 +1,7 @@
-export type DocSource = 'file' | 'url' | 'sample' | 'paste'
-
 export interface MarkdownDoc {
   name: string
   text: string
-  source: DocSource
+  /** Set only for a document fetched from the web, which can be reloaded. */
   url?: string
 }
 
@@ -64,6 +62,29 @@ export function canWatchFiles(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window
 }
 
+interface DropItem extends DataTransferItem {
+  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>
+}
+
+/**
+ * A dropped file is watchable too, but only if the handle is claimed while the
+ * drop event is still live: the browser neuters the `DataTransfer` as soon as
+ * the handler returns, so `getAsFileSystemHandle()` has to be *called*
+ * synchronously even though its result is awaited later. Hence a promise out
+ * rather than an async function. Null where the API is missing (non-Chromium),
+ * which simply means the drop loads without watching, as before.
+ */
+export function handleFromDrop(event: DragEvent): Promise<FileSystemFileHandle | null> | null {
+  const item = event.dataTransfer?.items?.[0] as DropItem | undefined
+  if (typeof item?.getAsFileSystemHandle !== 'function') return null
+  return item
+    .getAsFileSystemHandle()
+    .then((handle) =>
+      handle && handle.kind === 'file' ? (handle as FileSystemFileHandle) : null,
+    )
+    .catch(() => null)
+}
+
 interface PickedFile {
   doc: MarkdownDoc
   handle: FileSystemFileHandle
@@ -110,7 +131,7 @@ export async function readIfChanged(
 
 export async function readMarkdownFile(file: File): Promise<MarkdownDoc> {
   const text = await file.text()
-  return { name: file.name, text, source: 'file' }
+  return { name: file.name, text }
 }
 
 /** A server that accepts the connection and never answers must not hang the UI. */
@@ -133,7 +154,7 @@ export async function fetchMarkdown(rawUrl: string, signal?: AbortSignal): Promi
     throw new Error(`Could not load that URL (HTTP ${response.status}).`)
   }
   const text = await response.text()
-  return { name: fileNameFromUrl(url), text, source: 'url', url }
+  return { name: fileNameFromUrl(url), text, url }
 }
 
 /** Convenience: a GitHub blob link points at HTML, so use the raw file instead. */

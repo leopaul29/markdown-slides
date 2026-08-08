@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { useDialogFocus } from '../lib/useDialogFocus'
+import { useEffect, useRef } from 'react'
 
 interface LightboxProps {
   src: string
@@ -7,31 +6,26 @@ interface LightboxProps {
   onClose: () => void
 }
 
+/**
+ * A native modal dialog: `showModal()` brings the focus trap, Esc-to-close and
+ * the backdrop with it, so none of that has to be written here.
+ */
 export function Lightbox({ src, alt, onClose }: LightboxProps) {
-  const containerRef = useDialogFocus<HTMLDivElement>()
+  const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+    dialogRef.current?.showModal()
+  }, [])
 
   return (
-    <div
-      ref={containerRef}
+    <dialog
+      ref={dialogRef}
       className="lightbox"
-      role="dialog"
-      aria-modal="true"
       aria-label={alt ? `Image: ${alt}` : 'Image preview'}
-      tabIndex={-1}
+      onClose={onClose}
       onClick={onClose}
     >
       <img src={src} alt={alt} />
-    </div>
+    </dialog>
   )
 }

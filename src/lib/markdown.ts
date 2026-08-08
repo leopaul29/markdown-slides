@@ -2,7 +2,6 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
-import rehypeSlug from 'rehype-slug'
 import { createLowlight } from 'lowlight'
 import { toHtml } from 'hast-util-to-html'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -61,11 +60,7 @@ const parser = unified().use(remarkParse).use(remarkGfm)
  * the reader: raw HTML in the source is dropped (no `allowDangerousHtml`), and
  * link and image URLs are restricted to safe schemes.
  */
-const toHast = unified()
-  .use(remarkRehype)
-  .use(rehypeSlug)
-  .use(rehypeSyntaxHighlight)
-  .use(rehypeSafeUrls)
+const toHast = unified().use(remarkRehype).use(rehypeSyntaxHighlight).use(rehypeSafeUrls)
 
 export function parseMarkdown(markdown: string): Root {
   return parser.parse(normalize(markdown)) as Root
@@ -185,11 +180,16 @@ function highlightCode(node: HastElement): void {
 
 function registeredLanguage(code: HastElement): string | null {
   const classes = (code.properties?.className as string[] | undefined) ?? []
+  const name = languageFromClasses(classes)
+  if (!name) return null
+  const resolved = LANGUAGE_ALIASES[name] ?? name
+  return lowlight.registered(resolved) ? resolved : null
+}
+
+/** The `language-…` class remark writes for a fenced block, if any. */
+export function languageFromClasses(classes: Iterable<string>): string | null {
   for (const className of classes) {
-    if (!className.startsWith('language-')) continue
-    const name = className.slice('language-'.length).toLowerCase()
-    const resolved = LANGUAGE_ALIASES[name] ?? name
-    if (lowlight.registered(resolved)) return resolved
+    if (className.startsWith('language-')) return className.slice('language-'.length).toLowerCase()
   }
   return null
 }
