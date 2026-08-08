@@ -175,7 +175,7 @@ describe('search ranking', () => {
     const deck = buildDeck(`# Doc\n\n${sections}\n## Widget reference\n\nlast one.\n`)
     const results = searchDeck(deck, 'widget', 10)
     expect(results[0].slide.title).toBe('Widget reference')
-    expect(results[0].titleMatch).toBe(true)
+    expect(results[0].score).toBeGreaterThan(results[1].score)
   })
 
   it('still caps the number of results', () => {

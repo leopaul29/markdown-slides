@@ -67,6 +67,8 @@ export default function App() {
 
   const deck = useMemo(() => (doc ? buildDeck(doc.text) : null), [doc])
   const currentSlide = deck?.slides[currentIndex]
+  /** Only a document fetched from the web can be reloaded from its source. */
+  const docUrl = doc?.url
 
   const applyDoc = useCallback((next: MarkdownDoc, keepPosition = false) => {
     setDoc(next)
@@ -367,11 +369,11 @@ export default function App() {
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          {doc?.source === 'url' && doc.url ? (
+          {docUrl ? (
             <button
               type="button"
               className="icon-button"
-              onClick={() => void openUrl(doc.url as string)}
+              onClick={() => void openUrl(docUrl)}
               aria-label="Reload from URL"
               title="Reload from URL"
               disabled={busy}
@@ -468,11 +470,11 @@ export default function App() {
               onUrl={(url) => void openUrl(url)}
               onPaste={(text) => {
                 cancelPendingLoad()
-                applyDoc({ name: 'Pasted Markdown', text, source: 'paste' })
+                applyDoc({ name: 'Pasted Markdown', text })
               }}
               onSample={() => {
                 cancelPendingLoad()
-                applyDoc({ name: 'Guided tour.md', text: sampleMarkdown, source: 'sample' })
+                applyDoc({ name: 'Guided tour.md', text: sampleMarkdown })
               }}
             />
           </div>

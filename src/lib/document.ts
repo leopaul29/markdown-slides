@@ -1,9 +1,7 @@
-export type DocSource = 'file' | 'url' | 'sample' | 'paste'
-
 export interface MarkdownDoc {
   name: string
   text: string
-  source: DocSource
+  /** Set only for a document fetched from the web, which can be reloaded. */
   url?: string
 }
 
@@ -133,7 +131,7 @@ export async function readIfChanged(
 
 export async function readMarkdownFile(file: File): Promise<MarkdownDoc> {
   const text = await file.text()
-  return { name: file.name, text, source: 'file' }
+  return { name: file.name, text }
 }
 
 /** A server that accepts the connection and never answers must not hang the UI. */
@@ -156,7 +154,7 @@ export async function fetchMarkdown(rawUrl: string, signal?: AbortSignal): Promi
     throw new Error(`Could not load that URL (HTTP ${response.status}).`)
   }
   const text = await response.text()
-  return { name: fileNameFromUrl(url), text, source: 'url', url }
+  return { name: fileNameFromUrl(url), text, url }
 }
 
 /** Convenience: a GitHub blob link points at HTML, so use the raw file instead. */

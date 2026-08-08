@@ -5,3 +5,7 @@ coverage/
 .DS_Store
 .vite/
 *.log
+
+# Agent config: project workflow skills are shared, personal settings are not.
+.claude/settings.json
+.claude/settings.local.json

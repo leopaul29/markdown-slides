@@ -50,19 +50,22 @@ Markdown Reader makes them enjoyable to explore.
 ## Getting started
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Then open the printed URL and drop a `.md` file onto the page.
 
-| Command           | What it does                                  |
-| ----------------- | --------------------------------------------- |
-| `npm run dev`     | Start the dev server with hot reload           |
-| `npm run build`   | Type-check and build to `dist/`                |
-| `npm run preview` | Serve the production build locally             |
-| `npm test`        | Run the slide-builder and search test suite    |
-| `npm run typecheck` | Type-check without emitting                  |
+| Command            | What it does                               |
+| ------------------ | ------------------------------------------ |
+| `pnpm dev`         | Start the dev server with hot reload        |
+| `pnpm build`       | Type-check and build to `dist/`             |
+| `pnpm preview`     | Serve the production build locally          |
+| `pnpm test`        | Run the slide-builder and search test suite |
+| `pnpm typecheck`   | Type-check without emitting                 |
+
+This project uses **pnpm** (`pnpm-lock.yaml` is the lockfile). The version is pinned through
+`packageManager` in `package.json`, so `corepack enable` is enough to get the right one.
 
 ---
 
@@ -248,7 +251,7 @@ lag. Rendered slides are cached for the lifetime of the document.
 
 Syntax highlighting drives `lowlight` directly with an explicit language list rather than
 `rehype-highlight`, whose default import pulls in every common highlight.js grammar. The
-production bundle is 194 kB gzipped.
+production bundle is 189 kB gzipped.
 
 Search scores every slide on every keystroke. The expensive parts are avoided rather than
 optimised: the searchable text of a slide is derived once and cached, fuzzy matching is gated
@@ -291,7 +294,7 @@ Markdown stays the source of truth.
 
 ## Deployment
 
-`npm run build` produces a static site in `dist/`. The included GitHub Actions workflow
+`pnpm build` produces a static site in `dist/`. The included GitHub Actions workflow
 publishes it to GitHub Pages on every push to `main`, setting `BASE_PATH` so assets resolve
 under `/<repository>/`.
 
@@ -312,7 +315,7 @@ view; v4 packages a desktop reader and v5 an editor integration.
 * Vite
 * Remark / Unified / Rehype
 * Reveal.js
-* Tailwind CSS
+* Hand-written CSS — no framework
 
 ---
 

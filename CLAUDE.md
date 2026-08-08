@@ -5,19 +5,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm install
-npm run dev          # Vite dev server
-npm run build        # tsc --noEmit && vite build
-npm run typecheck    # type-check only
-npm test             # vitest run (all tests)
-npm run test:watch
-npm run preview      # serve the production build
+pnpm install
+pnpm dev             # Vite dev server
+pnpm build           # tsc --noEmit && vite build
+pnpm typecheck       # type-check only
+pnpm test            # vitest run (all tests)
+pnpm test:watch
+pnpm preview         # serve the production build
 
-npx vitest run src/lib/search.test.ts        # one test file
-npx vitest run -t 'creates one slide per'    # one test by name
+pnpm vitest run src/lib/search.test.ts        # one test file
+pnpm vitest run -t 'creates one slide per'    # one test by name
 ```
 
-Use **npm**, not pnpm — `package-lock.json` is the tracked lockfile and CI runs `npm ci`.
+**pnpm only.** `pnpm-lock.yaml` is the lockfile, the version is pinned by `packageManager` in
+`package.json`, and CI runs `pnpm install --frozen-lockfile`. Do not introduce npm or yarn
+lockfiles. Because pnpm's `node_modules` is not flat, a type package that used to arrive
+transitively (`@types/mdast`, `@types/hast`) has to be an explicit devDependency.
+
 CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on every branch; `deploy.yml`
 publishes `dist/` to GitHub Pages from `main` with `BASE_PATH=/<repo>/`.
 
@@ -37,7 +41,8 @@ markdown text
 
 `App.tsx` owns all application state (document, theme, current index, watch handle, dialogs) and
 passes it down; there is no store or context. `Deck.tsx` exposes an imperative `DeckHandle`
-(`goTo`/`next`/`prev`/`toggleOverview`) via `forwardRef` — that is the only way to move the deck.
+(`goTo`/`toggleOverview`) via `forwardRef` — that is the only way the app moves the deck;
+everything else is Reveal's own keyboard handling.
 
 ### Loading and position state (all in `App.tsx`)
 
@@ -63,9 +68,9 @@ same model. Keep it that way.
 Two names collide today: `Deck` is both the document model (`lib/slides.ts`) and the React
 component that renders it (`components/Deck.tsx`).
 
-Known Reveal-shaped leaks in the model, listed as v2 work in `ROADMAP.md` and
-`docs/architecture-notes.md`: `Slide.h` / `Slide.v` (Reveal coordinates; redundant with the
-section index and `part - 1`), `Deck.columns` (a Reveal layout concept), and `nodesToHtml` living
+`Slide.h` / `Slide.v` are gone — Reveal's coordinates are derived in `Deck.tsx` (`coordsOf`) from
+the column list and `part - 1`. Two leaks remain, both listed as v2 work in `ROADMAP.md` and
+`docs/architecture-notes.md`: `Deck.columns` (a Reveal layout concept) and `nodesToHtml` living
 next to the parser.
 
 ### Non-negotiable principles (from `ROADMAP.md`)
@@ -123,9 +128,13 @@ accounts.
   `Ctrl/⌘K`, `/`, `M` and `T` on `window` with `capture: true` so they run before Reveal's handler,
   and skips them while focus is in an input. New shortcuts go in that same listener, not in Reveal
   config.
-* **Tailwind is imported but barely used.** `src/index.css` is hand-written: semantic class names
-  plus CSS custom properties switched by `data-theme` on `<html>`. Follow that — a new component
-  gets a class and rules in `index.css`, not a string of utilities.
+* **There is no CSS framework.** `src/index.css` is hand-written: a short base block (box sizing,
+  form-control fonts) on top of Reveal's reset, then semantic class names and CSS custom
+  properties switched by `data-theme` on `<html>`. A new component gets a class and rules in
+  `index.css`. Tailwind was removed because nothing used a utility class.
+* **Modals use native `<dialog>` where they can.** `Lightbox` calls `showModal()` and gets the
+  focus trap, Esc and backdrop for free. `useDialogFocus` remains only for `SearchPalette`, which
+  needs combobox semantics a plain dialog does not provide.
 
 ## Testing
 

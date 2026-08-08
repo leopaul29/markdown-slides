@@ -12,8 +12,6 @@ export interface SearchResult {
   title: SearchSegment[]
   /** Snippet around the best body match, split the same way. */
   snippet: SearchSegment[]
-  /** True when every term of the query was found in the title. */
-  titleMatch: boolean
   /** Ranking score. Higher is better; a pure function of the deck and query. */
   score: number
 }
@@ -136,7 +134,6 @@ export function searchDeck(deck: Deck, query: string, limit = 40): SearchResult[
 interface Match {
   slide: Slide
   score: number
-  titleMatch: boolean
   titleRanges: Range[]
   /** Where each term first occurs in the body; empty for a title-only hit. */
   bodyAnchors: Range[]
@@ -148,7 +145,6 @@ function present(match: Match, terms: QueryTerm[]): SearchResult {
     slide: match.slide,
     title: toSegments(title, match.titleRanges),
     snippet: buildSnippet(text, lower, terms, match.bodyAnchors),
-    titleMatch: match.titleMatch,
     score: match.score,
   }
 }
@@ -180,13 +176,12 @@ function matchInSlide(slide: Slide, terms: QueryTerm[]): Match | null {
     score += termScore
   }
 
-  const titleMatch = titleTerms === terms.length
-  if (titleMatch) score += ALL_TERMS_IN_TITLE_BONUS
+  if (titleTerms === terms.length) score += ALL_TERMS_IN_TITLE_BONUS
   if (bodyAnchors.length === terms.length && span(bodyAnchors) <= PROXIMITY_WINDOW) {
     score += PROXIMITY_BONUS
   }
 
-  return { slide, score, titleMatch, titleRanges, bodyAnchors }
+  return { slide, score, titleRanges, bodyAnchors }
 }
 
 /** Scores one term against the title and records what to highlight. */
