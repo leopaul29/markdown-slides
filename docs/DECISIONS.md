@@ -1,5 +1,100 @@
 # Decisions
 
+## 2026-08-08
+
+### Decision
+Split the engine from the renderer as `src/engine/` and `src/render/`, with `compile()` as the
+single entry point, and enforce the boundary with a test rather than a paragraph.
+
+### Context
+V2 required "a document model that carries no renderer-specific fields". Three leaks were on
+record: `Deck.columns` (a Reveal layout concept), `nodesToHtml` living next to the parser, and
+the name `Deck` meaning both the model and the React component.
+
+### Reasoning
+The rule the split exists to protect — the engine knows nothing about how anything is drawn —
+is exactly the kind of rule prose does not hold. `src/engine/boundary.test.ts` walks every
+source file under `src/engine/` and asserts that none of them imports a view, a renderer, React,
+Reveal or any hast/lowlight package, and that a compiled model contains no markup. A directory
+boundary makes the rule visible; the test makes it enforceable.
+
+### Consequences
+`Deck.columns` is gone: a section owns its segment indices, and Reveal's coordinates are derived
+in the view as `[segment.section, segment.part - 1]` — an O(1) lookup that used to be a scan.
+The model type is `DocumentModel` and `Deck` now means only the component. Adding a renderer that
+is not HTML costs nothing in the engine; adding an import to it fails CI.
+
+---
+
+### Decision
+Ship three segmentation strategies (`headings`, `h1`, `fixed-length`) and extract the strategy
+interface from them, rather than defining the interface first.
+
+### Context
+`docs/architecture-notes.md` argued that an interface derived from a single implementation gets
+shaped like that implementation, and advised writing the second strategy before extracting
+anything.
+
+### Reasoning
+Writing all three first showed what they actually share, which is not a pipeline of hooks: it is
+`weightOf()` and two splitters. `fixed-length` in particular does not want the heading-aware
+splitter at all — it packs blocks to a budget and lets headings only *name* the pages. Had the
+interface been drawn from `headings` alone it would have imposed that splitter on everyone. The
+interface that survived is one function, `divide(root, { maxWeight }) → sections with parts`.
+
+### Consequences
+The strategy is chosen in the toolbar and persisted. An unknown persisted name falls back to the
+default rather than throwing, so a stale setting can never stop a document opening. Every
+strategy is held to the same invariants by one parameterised test file — code blocks never split,
+part numbering is consistent, output is deterministic.
+
+---
+
+### Decision
+Make the reader's position a single segment index, owned by `App.tsx`, and give every view the
+same `goTo(index)` handle.
+
+### Context
+The architecture notes named cross-view position — "I was here in Presentation, put me here in
+Book" — as a genuine design problem to decide before Book View, not during.
+
+### Reasoning
+Because both views consume the same model, an index into `model.segments` means the same thing
+in both. No translation, no per-view position state, and the `#/12` fragment keeps working
+unchanged. The restore effect hands that index to whichever view just mounted, which covers view
+switching, strategy changes, live reload and deep links with one code path.
+
+### Consequences
+A strategy change moves the reader to the segment with the same index rather than to the same
+*content*, which is approximate but predictable. The effect is guarded by a ref holding the model
+and view it last ran for, because React remounts children freely and the URL fragment must never
+be consumed twice.
+
+---
+
+### Decision
+Render the book view lazily with two `IntersectionObserver`s and placeholder heights, and correct
+`scrollTop` after any fill above the reader.
+
+### Context
+Lazy rendering is why a 12,000-line document opens in under two seconds. A continuous page makes
+it harder: an unrendered body has no height, so either everything renders at once or the page
+grows under the reader as bodies arrive.
+
+### Reasoning
+An unrendered body stands in for its own estimated height through a `--estimate` custom property
+derived from the segment's text — deterministic, and it measures nothing. One observer renders
+bodies as they approach the viewport, a second reports the topmost segment in the top fifth of
+the page. Scroll anchoring is then a measurement, not a guess: `useSegmentBodies` records where
+the anchor segment sat before the fill and shifts the container by whatever it moved.
+
+### Consequences
+A 17,000-line document mounts the book view in ~0.2 s with five bodies rendered. The estimate is
+approximate, so the scrollbar is honest rather than exact. Any future view that scrolls as one
+page has to pass an anchor to the hook.
+
+---
+
 ## 2026-08-03
 
 ### Decision

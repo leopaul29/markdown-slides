@@ -2,41 +2,44 @@
 
 ## Objective
 
-Markdown Reader is a local, deterministic reader that turns any Markdown document into a
-navigable slide deck. v1 (presentation view) is the shipped scope. The agreed direction is a
-read-only reader with several interchangeable views, with the engine extracted in V2 alongside a
-second view rather than before one exists.
+Markdown Reader is a local, deterministic reader that turns any Markdown document into something
+navigable. The agreed direction is a read-only reader with several interchangeable views, with the
+engine extracted alongside a second view rather than before one exists.
 
 ## Status
 
-v1 is shipped and merged to `main`. Work since then sits on
-`claude/roadmap-engine-renderer-split-xi5px6`, two commits ahead of `origin`: a `CLAUDE.md` for
-future sessions, and an over-engineering cleanup that migrated the project to pnpm, removed
-Tailwind, and cut the model down to what the app uses. Typecheck, 50 tests and the production
-build pass.
+v1 (presentation view) is shipped and merged to `main`. **V2 — engine extraction + Book View — is
+complete** on `claude/v2-engine-extraction-book-view-g3aofl`: the engine is split from the renderer
+behind `compile()`, the Book View ships, three segmentation strategies are selectable, and position
+survives switching between any of them. Typecheck, 87 tests and the production build pass, and the
+work was verified by driving the app in a headless browser (both views, both themes, three
+strategies, a 17,220-line document).
 
 ## Completed
 
-- **Slide engine** (`src/lib/slides.ts`) — deterministic rules: `#` opens a group, `##` opens a
-  slide, `###`+ stay inside, content before the first heading gets an opening slide, oversized
-  sections split into parts. Code blocks and tables never split; no slide ends on an orphan
-  heading. The model carries mdast nodes and no renderer-specific coordinates.
-- **Reader** — Reveal.js with `disableLayout`; sections horizontal, split parts vertical. TOC
-  sidebar, `Ctrl/⌘K` ranked search over headings/prose/lists/code, syntax highlighting with
-  optional line numbers, scrollable tables, native-`<dialog>` image lightbox, light/dark themes.
-- **Loading** — drop, picker, paste and `?src=` URL, live reload through the File System Access
-  API, `#/12` deep links, last document restored on reload.
-- **Security** — raw HTML dropped; link and image URLs restricted to an allow-list in the
-  mdast → hast pipeline.
-- **Toolchain** — pnpm only, pinned by `packageManager`; CI and the Pages deploy both run
-  `pnpm install --frozen-lockfile`. No CSS framework: `src/index.css` is a small base block plus
-  hand-written semantic classes and `data-theme` custom properties.
-- **Records** — `README.md`, `ROADMAP.md`, `CLAUDE.md`, `docs/DECISIONS.md`, `docs/LESSONS.md`
-  and `docs/architecture-notes.md`.
+- **Engine** (`src/engine/`) — `compile(markdown, options)` is the single entry point. The model is
+  segments (reading order), sections (each owning its segment indices), a TOC and the strategy
+  name; segments carry mdast nodes and no markup, no `h`/`v`, no `columns`.
+- **Strategies** (`src/engine/strategies/`) — `headings` (the v1 rules, default), `h1` and
+  `fixed-length`, sharing `weightOf()` and two splitters. The interface was extracted from the
+  three, not predicted from one. Unknown names fall back to the default.
+- **Boundary** — `src/engine/boundary.test.ts` fails if anything under `src/engine/` imports a
+  view, a renderer, React, Reveal or a hast/lowlight package, or if a compiled model contains
+  markup.
+- **Renderer** (`src/render/`) — `html.ts` (AST → HTML, highlighting, URL allow-list), `enhance.ts`
+  (table wrappers, code chrome, line numbers) and `useSegmentBodies.ts`, the lazy cached body
+  injection shared by both views, including scroll anchoring.
+- **Views** — `Deck.tsx` (Reveal.js, sections horizontal, parts vertical) and `BookView.tsx` (one
+  scrolling page, two `IntersectionObserver`s, placeholder heights from a `--estimate` property).
+  Both implement the same `ViewHandle`. The switcher is in the toolbar, bound to `V`, persisted.
+- **Cross-view position** — one segment index owned by `App.tsx`, handed to whichever view just
+  mounted. Covers view switching, strategy changes, live reload and `#/12` deep links.
+- **Everything from v1** — TOC sidebar, ranked search, syntax highlighting, lightbox, themes, the
+  four load paths, live reload, URL safety, pnpm toolchain, no CSS framework.
 
 ## In Progress
 
-- This snapshot is uncommitted; everything else on the branch is committed.
+- Nothing. The branch is ready to push and open as a PR.
 
 ## Blockers
 
@@ -44,24 +47,21 @@ None.
 
 ## Risks
 
-- **The cleanup is not browser-verified.** Removing Tailwind and rebuilding the lightbox on
-  `<dialog>` both change rendering, and the test suite is node-only. This project's own history
-  says its worst defects were visible only in a rendered page.
-- **`Deck.columns` is the last Reveal-shaped field in the model**, and `nodesToHtml` still sits
-  next to the parser. Both are V2 work.
-- **`docs/architecture-notes.md` is stale in one detail** — it still lists `h`/`v` among the
-  open leaks, which this cleanup closed.
-- **Second view is unproven.** The roadmap's abstractions are justified by Book View existing; if
-  it never ships, the current direct structure is the right one.
-- **The local checkout directory is still named `markdown-slides`** although the GitHub
-  repository is now `markdown-reader`. The git remote has been repointed; the next Pages deploy
-  publishes under the new `BASE_PATH`, so any previously shared `/markdown-slides/` link breaks.
+- **`compile()` is the entry point but still experimental.** Freezing it as a public API is worth
+  doing only after the Outline view has pulled on it; until then its shape can still change.
+- **A strategy change keeps the segment *index*, not the segment content.** Predictable, but a
+  reader who switches strategies mid-document lands nearby rather than exactly where they were.
+- **The sidebar does not scroll its active entry into view**, which is more noticeable now that a
+  long document can be read continuously.
+- **The app still reads `#/12` only on load.** Editing the fragment in the address bar of an open
+  document does nothing; this predates v2.
+- **Book view placeholder heights are estimates.** The scrollbar is honest, not exact, and a
+  document of very uneven blocks will see it settle as bodies render.
 
 ## Next Actions
 
-1. Open a PR against `main` for this branch.
-2. Run the app in a browser and confirm the styling and the lightbox after the Tailwind and
-   `<dialog>` changes.
-3. Fix the stale `h`/`v` line in `docs/architecture-notes.md`.
-4. When starting V2: write the `fixed-length` strategy first, then extract the strategy interface
-   from the two implementations — not before.
+1. Push the branch and open a PR against `main`.
+2. V3 — Outline view: a collapsible tree over the same model. It is the third consumer that should
+   decide whether `compile()` is frozen as-is.
+3. If the Outline view wants it, teach `Sidebar` to scroll the active entry into view — it will be
+   shared by three views by then.

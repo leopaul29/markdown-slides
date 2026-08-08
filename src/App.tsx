@@ -1,22 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Deck, type DeckHandle } from './components/Deck'
+import { Deck } from './components/Deck'
+import { BookView } from './components/BookView'
 import { Sidebar } from './components/Sidebar'
 import { SearchPalette } from './components/SearchPalette'
 import { Welcome } from './components/Welcome'
 import { Lightbox } from './components/Lightbox'
+import { isViewName, VIEWS, type ViewHandle, type ViewName } from './components/view'
 import {
+  BookIcon,
   CloseIcon,
   FileIcon,
   GridIcon,
   HashIcon,
   MenuIcon,
   MoonIcon,
+  PresentIcon,
   RefreshIcon,
   SearchIcon,
   SunIcon,
   WatchIcon,
 } from './components/icons'
-import { buildDeck } from './lib/slides'
+import {
+  compile,
+  DEFAULT_STRATEGY,
+  STRATEGIES,
+  strategyByName,
+  type DocumentModel,
+  type StrategyName,
+} from './engine'
 import {
   canWatchFiles,
   fetchMarkdown,
@@ -35,7 +46,7 @@ import sampleMarkdown from './examples/tour.md?raw'
 
 type Theme = 'light' | 'dark'
 
-/** Reads a `#/12` fragment as a 1-based slide number. */
+/** Reads a `#/12` fragment as a 1-based segment number. */
 function readHashIndex(): number | null {
   const match = /^#\/(\d+)$/.exec(location.hash)
   return match ? Number(match[1]) : null
@@ -45,6 +56,13 @@ export default function App() {
   const [doc, setDoc] = useState<MarkdownDoc | null>(() => readStoredDoc())
   const [theme, setTheme] = useState<Theme>(
     () => (document.documentElement.dataset.theme as Theme) ?? 'dark',
+  )
+  const [view, setView] = useState<ViewName>(() => {
+    const stored = readSetting('view', 'presentation')
+    return isViewName(stored) ? stored : 'presentation'
+  })
+  const [strategy, setStrategy] = useState<StrategyName>(
+    () => strategyByName(readSetting('strategy', DEFAULT_STRATEGY)).name,
   )
   const [sidebarOpen, setSidebarOpen] = useState(() => readSetting('sidebar', 'open') === 'open')
   const [lineNumbers, setLineNumbers] = useState(() => readSetting('lineNumbers', 'off') === 'on')
@@ -60,13 +78,20 @@ export default function App() {
   )
   const [watching, setWatching] = useState(true)
 
-  const deckRef = useRef<DeckHandle>(null)
+  const viewRef = useRef<ViewHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  /** Slide requested by the URL fragment, consumed once the deck is built. */
+  /** Segment requested by the URL fragment, consumed once the model is built. */
   const pendingHash = useRef<number | null>(readHashIndex())
+  /** What the position below was last restored for, and to where; see the effect. */
+  const restored = useRef<{ model: DocumentModel; view: ViewName; target: number | null } | null>(
+    null,
+  )
 
-  const deck = useMemo(() => (doc ? buildDeck(doc.text) : null), [doc])
-  const currentSlide = deck?.slides[currentIndex]
+  const model = useMemo(
+    () => (doc ? compile(doc.text, { strategy }) : null),
+    [doc, strategy],
+  )
+  const currentSegment = model?.segments[currentIndex]
   /** Only a document fetched from the web can be reloaded from its source. */
   const docUrl = doc?.url
 
@@ -161,7 +186,7 @@ export default function App() {
   )
 
   const goTo = useCallback((index: number) => {
-    deckRef.current?.goTo(index)
+    viewRef.current?.goTo(index)
   }, [])
 
   // `?src=…` lets you deep-link the reader at any Markdown file on the web.
@@ -170,22 +195,43 @@ export default function App() {
     if (src) void openUrl(src)
   }, [openUrl])
 
-  // A `#/12` fragment opens the document at that slide, so a position can be
-  // bookmarked or shared. Consumed once per deck, before any hash is written.
+  /*
+   * Position is a segment index and every view understands it, which is what
+   * makes switching views — and changing how the document is divided — keep the
+   * reader's place. This effect hands that position to whichever view has just
+   * mounted, after consuming a `#/12` fragment if one is waiting.
+   */
   useEffect(() => {
-    if (!deck) return
-    const target = pendingHash.current
-    pendingHash.current = null
-    if (target !== null && target >= 1 && target <= deck.slides.length) {
-      goTo(target - 1)
+    if (!model) return
+    const previous = restored.current
+    const isNew = !previous || previous.model !== model || previous.view !== view
+
+    if (isNew) {
+      const requested = pendingHash.current
+      pendingHash.current = null
+      const target =
+        requested !== null && requested >= 1 && requested <= model.segments.length
+          ? requested - 1
+          : // A view switch, a strategy change or a live reload: stay put.
+            previous
+            ? Math.min(currentIndexRef.current, model.segments.length - 1)
+            : null
+      restored.current = { model, view, target }
+      if (target !== null) goTo(target)
+      return
     }
-  }, [deck, goTo])
+
+    // The same model and view again, which is React re-running this effect
+    // after a StrictMode remount: re-issue the jump the remount threw away,
+    // rather than consuming the URL fragment a second time.
+    if (previous.target !== null) goTo(previous.target)
+  }, [model, view, goTo])
 
   useEffect(() => {
-    if (!deck || pendingHash.current !== null) return
+    if (!model || pendingHash.current !== null) return
     // `replaceState` keeps the back button useful for leaving the app.
     history.replaceState(null, '', `#/${currentIndex + 1}`)
-  }, [deck, currentIndex])
+  }, [model, currentIndex])
 
   /*
    * Live reload: the File System Access API hands back a handle that can be
@@ -225,6 +271,14 @@ export default function App() {
     writeSetting('lineNumbers', lineNumbers ? 'on' : 'off')
   }, [lineNumbers])
 
+  useEffect(() => {
+    writeSetting('view', view)
+  }, [view])
+
+  useEffect(() => {
+    writeSetting('strategy', strategy)
+  }, [strategy])
+
   // App-level shortcuts. Captured before Reveal's own keyboard handler runs.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -236,7 +290,7 @@ export default function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         event.stopPropagation()
-        if (deck) setSearchOpen(true)
+        if (model) setSearchOpen(true)
         return
       }
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return
@@ -244,18 +298,21 @@ export default function App() {
       if (event.key === '/') {
         event.preventDefault()
         event.stopPropagation()
-        if (deck) setSearchOpen(true)
+        if (model) setSearchOpen(true)
       } else if (event.key === 'm' || event.key === 'M') {
         event.stopPropagation()
         setSidebarOpen((open) => !open)
       } else if (event.key === 't' || event.key === 'T') {
         event.stopPropagation()
         setTheme((value) => (value === 'dark' ? 'light' : 'dark'))
+      } else if (event.key === 'v' || event.key === 'V') {
+        event.stopPropagation()
+        if (model) setView((value) => (value === 'presentation' ? 'book' : 'presentation'))
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [deck])
+  }, [model])
 
   // Dropping a file anywhere in the window replaces the current document.
   useEffect(() => {
@@ -289,6 +346,8 @@ export default function App() {
     setLightbox({ src, alt })
   }, [])
 
+  const CurrentView = view === 'book' ? BookView : Deck
+
   return (
     <div className="app">
       <header className="topbar">
@@ -299,7 +358,7 @@ export default function App() {
           aria-pressed={sidebarOpen}
           aria-label="Table of contents"
           title="Table of contents (M)"
-          disabled={!deck}
+          disabled={!model}
         >
           <MenuIcon />
         </button>
@@ -315,16 +374,47 @@ export default function App() {
           >
             {doc?.name ?? 'Markdown Reader'}
           </strong>
-          {deck && currentSlide ? (
+          {model && currentSegment ? (
             <span className="muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-              {currentSlide.index + 1} / {deck.slides.length}
+              {currentSegment.index + 1} / {model.segments.length}
             </span>
           ) : null}
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-          {deck ? (
+          {model ? (
             <>
+              <div className="view-switch" role="group" aria-label="View">
+                {VIEWS.map((entry) => (
+                  <button
+                    key={entry.name}
+                    type="button"
+                    className="icon-button"
+                    onClick={() => setView(entry.name)}
+                    aria-pressed={view === entry.name}
+                    aria-label={`${entry.label} view`}
+                    title={`${entry.label} view (V) — ${entry.description}`}
+                  >
+                    {entry.name === 'book' ? <BookIcon /> : <PresentIcon />}
+                  </button>
+                ))}
+              </div>
+
+              <label className="strategy-select">
+                <span className="sr-only">How the document is divided</span>
+                <select
+                  value={strategy}
+                  onChange={(event) => setStrategy(event.target.value as StrategyName)}
+                  title="How the document is divided into sections"
+                >
+                  {STRATEGIES.map((entry) => (
+                    <option key={entry.name} value={entry.name} title={entry.description}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <button
                 type="button"
                 className="icon-button"
@@ -337,15 +427,17 @@ export default function App() {
                   ⌘K
                 </span>
               </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => deckRef.current?.toggleOverview()}
-                aria-label="Slide overview"
-                title="Slide overview (Esc)"
-              >
-                <GridIcon />
-              </button>
+              {view === 'presentation' ? (
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => viewRef.current?.toggleOverview?.()}
+                  aria-label="Slide overview"
+                  title="Slide overview (Esc)"
+                >
+                  <GridIcon />
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="icon-button"
@@ -438,10 +530,10 @@ export default function App() {
       </header>
 
       <div className="workspace">
-        {deck ? (
+        {model ? (
           <>
             <Sidebar
-              deck={deck}
+              model={model}
               currentIndex={currentIndex}
               open={sidebarOpen}
               onSelect={(index) => {
@@ -449,12 +541,15 @@ export default function App() {
                 if (window.innerWidth < 820) setSidebarOpen(false)
               }}
             />
-            <div className="deck-area">
-              <Deck
-                ref={deckRef}
-                deck={deck}
+            <div className="view-area">
+              {/* Keyed by view so switching mounts a fresh one rather than
+                  handing the other view's DOM to a different renderer. */}
+              <CurrentView
+                key={view}
+                ref={viewRef}
+                model={model}
                 lineNumbers={lineNumbers}
-                onSlideChange={setCurrentIndex}
+                onSegmentChange={setCurrentIndex}
                 onImageClick={onImageClick}
               />
             </div>
@@ -481,15 +576,15 @@ export default function App() {
         )}
       </div>
 
-      {deck && searchOpen ? (
-        <SearchPalette deck={deck} onClose={() => setSearchOpen(false)} onSelect={goTo} />
+      {model && searchOpen ? (
+        <SearchPalette model={model} onClose={() => setSearchOpen(false)} onSelect={goTo} />
       ) : null}
 
       {lightbox ? (
         <Lightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       ) : null}
 
-      {dragging && deck ? <div className="drag-veil">Drop to open this Markdown file</div> : null}
+      {dragging && model ? <div className="drag-veil">Drop to open this Markdown file</div> : null}
     </div>
   )
 }

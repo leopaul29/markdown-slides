@@ -1,9 +1,11 @@
 # Markdown Reader
 
-> Turn any Markdown document into a beautiful, navigable HTML presentation.
+> Turn any Markdown document into a beautiful, navigable HTML reader.
 
-Markdown Reader is an open-source tool that converts Markdown into an interactive slide deck.
-Instead of scrolling through thousands of lines, browse your document one section at a time.
+Markdown Reader is an open-source tool that converts Markdown into an interactive document you
+can read two ways: as a **presentation**, one section at a time, or as a **book**, one
+continuous scrolling page. Both are generated from the same deterministic model, and your
+place is kept when you switch.
 
 Designed for developers, technical writers, and anyone reading long Markdown documents.
 
@@ -31,7 +33,9 @@ Markdown Reader makes them enjoyable to explore.
 
 * 📄 Works with standard GitHub Flavored Markdown
 * 🎯 100% deterministic (no AI required)
-* ⚡ Instant HTML presentation
+* ⚡ Instant HTML rendering
+* 🖥️ Two views — presentation and book — switched with `V`, your choice remembered
+* ✂️ Three ways to divide a document — by headings, by `#` only, or into fixed-length pages
 * ⌨️ Keyboard navigation
 * 🔍 Ranked search across headings, prose, lists and code — multiple words, quoted phrases and
   fuzzy heading matches
@@ -42,7 +46,7 @@ Markdown Reader makes them enjoyable to explore.
 * 📊 Scrollable tables
 * 📱 Responsive layout
 * 🔄 Live reload — edit the file in your editor and the view follows
-* 🔗 Shareable `#/12` links to any slide
+* 🔗 Shareable `#/12` links to any section, in either view
 * 🔒 Runs entirely in your browser — nothing is uploaded
 
 ---
@@ -61,7 +65,7 @@ Then open the printed URL and drop a `.md` file onto the page.
 | `pnpm dev`         | Start the dev server with hot reload        |
 | `pnpm build`       | Type-check and build to `dist/`             |
 | `pnpm preview`     | Serve the production build locally          |
-| `pnpm test`        | Run the slide-builder and search test suite |
+| `pnpm test`        | Run the engine, strategy, search and render suites |
 | `pnpm typecheck`   | Type-check without emitting                 |
 
 This project uses **pnpm** (`pnpm-lock.yaml` is the lockfile). The version is pinned through
@@ -86,13 +90,15 @@ There are four ways to load Markdown:
   be served with permissive CORS headers.
 
 The last document you opened is restored when you reload the page, and the URL carries the
-slide you are on (`#/12`), so a position can be bookmarked or shared.
+section you are on (`#/12`), so a position can be bookmarked or shared. Position is one number
+in both views, so switching between them — or changing how the document is divided — keeps your
+place.
 
 ### Live reload
 
 In Chromium-based browsers both the *Open* button and a dropped file hand the app a File System
 Access handle it can re-read. The file is polled once a second, so editing it in another window
-updates the deck and keeps your place. Toggle it with the eye button in the toolbar. Other
+updates the view and keeps your place. Toggle it with the eye button in the toolbar. Other
 browsers still open the file — they just cannot watch it.
 
 ---
@@ -104,15 +110,15 @@ code.
 
 | Query | Finds |
 | --- | --- |
-| `webhook` | every slide containing "webhook" |
-| `retry webhook` | only slides containing **both** words — terms narrow, in any order |
+| `webhook` | every section containing "webhook" |
+| `retry webhook` | only sections containing **both** words — terms narrow, in any order |
 | `"exactly this"` | the phrase, matched literally and never fuzzily |
 | `authn` | the heading "Authentication" — headings also match on subsequences |
 | `adr` | the heading "Architecture Decision Records" — initials count |
 
 Results are ranked rather than listed in document order. A term in a heading outranks the same
 term in the body, a term starting a word outranks one buried mid-word, an exact match outranks
-a fuzzy one, and a slide holding all the terms in a single passage outranks one where they are
+a fuzzy one, and a section holding all the terms in a single passage outranks one where they are
 scattered. Equally good matches stay in document order, so the same query always produces the
 same list.
 
@@ -147,12 +153,13 @@ PostgreSQL is the source of truth.
 Output:
 
 ```text
-Slide 1        Slide 2   Slide 3        Slide 4
-Authentication  Why      Alternatives   Database
+Segment 1       Segment 2  Segment 3      Segment 4
+Authentication  Why        Alternatives   Database
 ```
 
-Each slide is one section. Sections too tall for the screen are split into parts stacked
-vertically, reachable with `↑` / `↓`.
+In the presentation each segment is a slide; in the book they follow one another down the page.
+Sections too tall for one screen are split into parts — stacked vertically in the presentation,
+reachable with `↑` / `↓`, and flowing into one another in the book.
 
 ---
 
@@ -167,13 +174,16 @@ Markdown Parser (remark + GFM)
 Markdown AST
      │
      ▼
-Slide Builder (deterministic rules)
+compile() — a segmentation strategy, deterministic rules
      │
-Slide Model
+Document Model  (segments, sections, table of contents — AST nodes, no HTML)
      │
-     ▼
-React components → Reveal.js
+     ├──▶ Presentation view (Reveal.js)
+     └──▶ Book view (one scrolling page)
 ```
+
+The engine (`src/engine/`) never imports the render layer and never produces markup; a test
+enforces it. Adding a view means consuming the model, not changing it.
 
 No AI.
 
@@ -185,41 +195,45 @@ are repaired. Your file on disk is never modified, and it remains the single sou
 
 ---
 
-## Slide Generation Rules
+## How a document is divided
 
-The presentation is generated using deterministic rules.
+Division is deterministic, and which rules are used is your choice — the strategy selector sits
+in the toolbar and is remembered.
 
-Default strategy:
+| Strategy | Rule |
+| --- | --- |
+| **Headings** (default) | `#` starts a group, `##` starts a section, `###`+ stay inside it |
+| **Top level only** | only `#` starts a section; `##` and deeper stay inside it |
+| **Fixed length** | even pages packed to the same height, wherever the headings fall |
 
-* Every `# Heading` starts a new slide group.
-* Every `## Heading` creates a new slide.
-* `###` and deeper headings stay within the current slide.
-* Content before the first heading becomes an opening slide.
+Whichever is chosen:
+
+* Content before the first heading becomes an opening section.
 * Large sections are automatically split into parts.
-* Code blocks never split across slides.
+* Code blocks never split.
 * Tables remain intact whenever possible.
-* A slide never ends on a heading whose content lives on the next slide.
+* A part never ends on a heading whose content lives in the next one.
 
-The same document always produces the same deck.
-
-Future versions will support multiple generation strategies.
+The same document and the same strategy always produce the same result.
 
 ---
 
 ## Keyboard Shortcuts
 
-| Key          | Action                     |
-| ------------ | -------------------------- |
-| ← →          | Previous / next slide      |
-| ↑ ↓          | Previous / next part       |
-| Home         | First slide                |
-| End          | Last slide                 |
-| F            | Fullscreen                 |
-| Esc          | Exit fullscreen / overview |
-| Ctrl/Cmd + K | Search                     |
-| /            | Search                     |
-| M            | Toggle table of contents   |
-| T            | Toggle light / dark theme  |
+| Key          | Action                                        |
+| ------------ | --------------------------------------------- |
+| ← →          | Previous / next section *(presentation)*      |
+| ↑ ↓          | Previous / next part *(presentation)*         |
+| Page ↑ ↓ · space | Scroll *(book)*                           |
+| Home         | Start of the document                         |
+| End          | End of the document                           |
+| F            | Fullscreen                                    |
+| Esc          | Exit fullscreen / overview                    |
+| Ctrl/Cmd + K | Search                                        |
+| /            | Search                                        |
+| V            | Switch between the presentation and the book  |
+| M            | Toggle table of contents                      |
+| T            | Toggle light / dark theme                     |
 
 ---
 
@@ -227,41 +241,53 @@ Future versions will support multiple generation strategies.
 
 ```text
 src/
-  lib/
-    markdown.ts   Markdown → AST, AST slice → HTML
-    slides.ts     Deterministic slide builder + table of contents
-    search.ts     Ranked multi-term search, with fuzzy heading matching
-    enhance.ts    Table wrappers, code chrome, line numbers
-    document.ts   File / URL loading, watching and persistence
+  engine/               Markdown → document model. Knows nothing about HTML.
+    compile.ts          The entry point: compile(markdown, options)
+    model.ts            DocumentModel, Section, Segment, TocEntry
+    markdown.ts         Markdown → AST, normalisation, searchable text
+    weight.ts           Deterministic height estimate for a block
+    strategies/         headings · h1 · fixed-length, and their shared splitters
+    boundary.test.ts    Enforces that none of the above imports a renderer
+  render/               The HTML renderer, shared by every HTML view.
+    html.ts             AST slice → HTML, syntax highlighting, URL allow-list
+    enhance.ts          Table wrappers, code chrome, line numbers
+    useSegmentBodies.ts Lazy, cached body injection with scroll anchoring
   components/
-    Deck.tsx      Reveal.js integration and lazy slide rendering
-    Sidebar.tsx   Table of contents
+    Deck.tsx            The presentation view (Reveal.js)
+    BookView.tsx        The book view (one scrolling page)
+    view.ts             ViewHandle and the list of views
+    Sidebar.tsx         Table of contents
     SearchPalette.tsx
-    Welcome.tsx   Drop zone and loaders
-    Lightbox.tsx  Fullscreen image preview
+    Welcome.tsx         Drop zone and loaders
+    Lightbox.tsx        Fullscreen image preview
+  lib/
+    search.ts           Ranked multi-term search, with fuzzy heading matching
+    document.ts         File / URL loading, watching and persistence
   examples/
-    tour.md       The bundled example document
+    tour.md             The bundled example document
 ```
 
 ### Performance notes
 
-Slide bodies are converted to HTML only when they come within two slides of the current
-position, so a 12,000-line document opens in well under two seconds and navigates without
-lag. Rendered slides are cached for the lifetime of the document.
+Bodies are converted to HTML only when they are needed — within two segments of the current
+position in the presentation, and as they approach the viewport in the book. A 17,000-line
+document (602 sections) opens in about 1.1 s with three bodies materialised, and the book view
+mounts over it in about 0.2 s. Rendered bodies are cached for the lifetime of the document, and
+unrendered ones stand in for their own estimated height so the scrollbar stays honest.
 
 Syntax highlighting drives `lowlight` directly with an explicit language list rather than
 `rehype-highlight`, whose default import pulls in every common highlight.js grammar. The
 production bundle is 189 kB gzipped.
 
-Search scores every slide on every keystroke. The expensive parts are avoided rather than
-optimised: the searchable text of a slide is derived once and cached, fuzzy matching is gated
-behind a linear subsequence pre-check that rejects almost every slide, its scoring matrix reuses
+Search scores every segment on every keystroke. The expensive parts are avoided rather than
+optimised: the searchable text of a segment is derived once and cached, fuzzy matching is gated
+behind a linear subsequence pre-check that rejects almost every segment, its scoring matrix reuses
 buffers instead of allocating them, and snippets are built only for the results that are shown.
-A query against the 1,040-slide document costs about 1 ms, worst case 3 ms.
+A query against a 1,000-section document costs about 1 ms, worst case 3 ms.
 
 Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
 dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
-`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their slide
+`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their section
 renders; links are only followed when you activate them.
 
 ---
@@ -272,7 +298,7 @@ Markdown Reader is **not** another presentation editor.
 
 Write your content in Markdown using your favorite editor.
 
-View it as slides whenever you want.
+Read it as slides or as a book whenever you want.
 
 Markdown stays the source of truth.
 
@@ -302,9 +328,9 @@ under `/<repository>/`.
 
 ## Roadmap
 
-[`ROADMAP.md`](./ROADMAP.md) is the plan of record. In short: v1 is the presentation view and
-is complete; v2 splits the engine from the renderer and adds a Book View; v3 adds an Outline
-view; v4 packages a desktop reader and v5 an editor integration.
+[`ROADMAP.md`](./ROADMAP.md) is the plan of record. In short: v1 (the presentation view) and v2
+(the engine/renderer split plus the Book View and named strategies) are complete; v3 adds an
+Outline view; v4 packages a desktop reader and v5 an editor integration.
 
 ---
 

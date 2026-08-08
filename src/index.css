@@ -232,9 +232,9 @@ body {
   color: var(--accent);
 }
 
-/* ------------------------------------------------------------------- deck */
+/* ----------------------------------------------------- presentation view */
 
-.deck-area {
+.view-area {
   position: relative;
   flex: 1;
   min-width: 0;
@@ -279,7 +279,7 @@ body {
   max-width: 62rem;
 }
 
-.slide-head {
+.segment-head {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
@@ -288,7 +288,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.slide-title {
+.segment-title {
   margin: 0;
   font-size: clamp(1.5rem, 1rem + 1.6vw, 2.4rem);
   font-weight: 700;
@@ -296,12 +296,12 @@ body {
   line-height: 1.15;
 }
 
-.slide-title.sub {
+.segment-title.sub {
   font-size: clamp(1.3rem, 0.9rem + 1.2vw, 1.9rem);
   font-weight: 650;
 }
 
-.slide-part {
+.segment-part {
   flex: none;
   font-size: 0.72rem;
   color: var(--muted);
@@ -310,7 +310,7 @@ body {
   padding: 0.1rem 0.5rem;
 }
 
-.slide-eyebrow {
+.segment-eyebrow {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -318,9 +318,87 @@ body {
   margin-bottom: 0.35rem;
 }
 
-.deck-empty {
+/* ------------------------------------------------------------- book view */
+
+.book {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: clamp(1rem, 0.72rem + 0.5vw, 1.22rem);
+  line-height: 1.6;
+  scroll-behavior: auto;
+}
+
+.book:focus,
+.book:focus-visible {
+  /* Focused only so that Page Up / Down and the space bar scroll it. */
+  outline: none;
+}
+
+.book-page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 60vh;
+}
+
+/* A section's parts flow into one another: only the first carries a heading,
+   so the seam between two parts must not look like a break. */
+.book-segment + .book-segment {
+  margin-top: 0.4rem;
+}
+
+.book-segment .segment-head {
+  margin-top: 2.4rem;
+  scroll-margin-top: 1rem;
+}
+
+.book-segment:first-child .segment-head {
+  margin-top: 0;
+}
+
+/* Before a body is rendered it stands in for its own height, so the scrollbar
+   is roughly honest and jumping into an unread part does not overshoot. */
+.book-segment .segment-body:not([data-filled='true']) {
+  min-height: var(--estimate, 40vh);
+}
+
+/* --------------------------------------------------- toolbar controls */
+
+.view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  margin-right: 0.35rem;
+}
+
+.strategy-select select {
+  height: 2rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-2);
   color: var(--muted);
-  font-style: italic;
+  font-size: 0.78rem;
+  cursor: pointer;
+  margin-right: 0.35rem;
+}
+
+.strategy-select select:hover {
+  color: var(--text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------- markdown body */
@@ -901,6 +979,14 @@ body {
 
   .slide-inner {
     padding: 1.4rem 1.2rem 4.5rem;
+  }
+
+  .book-page {
+    padding: 1.4rem 1.2rem 60vh;
+  }
+
+  .strategy-select {
+    display: none;
   }
 }
 

@@ -35,8 +35,8 @@ export function Welcome({
           Markdown Reader
         </h1>
         <p className="muted" style={{ marginTop: '0.6rem' }}>
-          Drop a Markdown file to explore it as a navigable slide deck. Everything runs locally in
-          your browser — no upload, no AI, no configuration.
+          Drop a Markdown file to read it as a navigable slide deck or as one continuous page.
+          Everything runs locally in your browser — no upload, no AI, no configuration.
         </p>
 
         <div
@@ -137,9 +137,10 @@ export function Welcome({
         </div>
 
         <p className="muted" style={{ marginTop: '1.8rem', fontSize: '0.8rem' }}>
-          <span className="kbd">←</span> <span className="kbd">→</span> slides ·{' '}
+          <span className="kbd">←</span> <span className="kbd">→</span> sections ·{' '}
           <span className="kbd">↑</span> <span className="kbd">↓</span> parts ·{' '}
-          <span className="kbd">Ctrl/⌘ K</span> search · <span className="kbd">F</span> fullscreen
+          <span className="kbd">V</span> view · <span className="kbd">Ctrl/⌘ K</span> search ·{' '}
+          <span className="kbd">F</span> fullscreen
         </p>
       </div>
     </div>

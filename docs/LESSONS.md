@@ -1,5 +1,56 @@
 # Lessons Learned
 
+## 2026-08-08 — v2: engine extraction + Book View
+
+## What Worked
+
+- Writing all three segmentation strategies before extracting their interface. What they share
+  turned out to be two helper functions, not a pipeline; an interface drawn from the first
+  implementation would have forced its heading-aware splitter onto `fixed-length`, which does not
+  want it. "Write the second implementation first" was the right advice and it cost nothing.
+- Making the architectural rule executable. `src/engine/boundary.test.ts` reads every engine
+  source and fails on an import of a view, a renderer, React or Reveal. A rule that only lives in
+  a document survives exactly as long as the next person who has not read it.
+- Choosing a single number — a segment index — as the reader's position. View switching, strategy
+  changes, live reload and `#/12` deep links all became one code path, and the second view needed
+  no position state of its own.
+- Driving the real app in a headless browser again. Every one of the three bugs below was invisible
+  to 87 passing unit tests and obvious within one scripted session.
+
+## What Did Not Work
+
+- Assuming a library respects the config that names its behaviour. Reveal.js calls
+  `Location.readURL()` unconditionally at startup, so `hash: false` does not stop it reading
+  `location.hash` — and the app's own `#/12` fragment is exactly the format Reveal parses. The
+  deck silently opened at whatever horizontal slide the fragment named. Read the library's source
+  before trusting the option name.
+- Clearing state on teardown to keep it from leaking into the next document. The queued jump in
+  `Deck.tsx` was wiped on unmount, which was correct for a document change and wrong for a
+  remount — React StrictMode remounts a component the moment it mounts, so every jump issued
+  before Reveal finished initializing was thrown away. Tagging the state with the model it belongs
+  to keeps both properties.
+- Reading a ref that another effect owns, in the effect that just changed the value it derives
+  from. The position-restore effect fell back to `currentIndexRef`, which is synced by a separate
+  effect on the *committed* state — so on a double invocation it read the previous position and
+  sent the reader back to it. Guard on identity (which model, which view) rather than on a value
+  that is about to be overwritten.
+- Trusting the browser's own scroll anchoring in a lazily rendered page. Bodies materialising above
+  the viewport moved the reader; measuring the anchor before and after the fill and correcting
+  `scrollTop` is a few lines and is exact.
+
+## Surprises
+
+- The engine/renderer split made the presentation *faster*, not slower: deriving Reveal's
+  coordinates from `[segment.section, segment.part - 1]` replaced a linear scan over the column
+  list on every jump.
+- A 17,220-line document (602 sections) opens in ~1.1 s in the production build and the book view
+  mounts over it in ~0.2 s — both better than the v1 figure for a smaller document, because the
+  lazy rendering is now shared by both views rather than reimplemented.
+- Two `IntersectionObserver`s with different root margins are a simpler answer to "what is on
+  screen" than any scroll handler, and they do the work off the main thread's hot path.
+
+---
+
 ## 2026-08-03
 
 ## What Worked
@@ -87,7 +138,7 @@
 
 ---
 
-## 2026-08-08
+## 2026-08-08 — over-engineering cleanup
 
 ## What Worked
 
