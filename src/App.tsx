@@ -20,6 +20,7 @@ import { buildDeck } from './lib/slides'
 import {
   canWatchFiles,
   fetchMarkdown,
+  handleFromDrop,
   isMarkdownFile,
   pickMarkdownFile,
   readIfChanged,
@@ -105,8 +106,12 @@ export default function App() {
     applyDoc(picked.doc)
   }, [applyDoc])
 
+  /**
+   * `handle` is the promise a drop hands over: resolved after the file is read,
+   * so a dropped file gets the same live reload as one opened from the picker.
+   */
   const openFile = useCallback(
-    async (file: File) => {
+    async (file: File, handle?: Promise<FileSystemFileHandle | null> | null) => {
       if (!isMarkdownFile(file)) {
         setError(`“${file.name}” does not look like a Markdown file.`)
         return
@@ -116,7 +121,9 @@ export default function App() {
         setBusy(true)
         const loaded = await readMarkdownFile(file)
         if (token !== loadToken.current) return
-        setWatch(null)
+        const watchable = handle ? await handle : null
+        if (token !== loadToken.current) return
+        setWatch(watchable ? { handle: watchable, lastModified: file.lastModified } : null)
         applyDoc(loaded)
       } catch {
         if (token === loadToken.current) setError(`Could not read “${file.name}”.`)
@@ -261,8 +268,10 @@ export default function App() {
     const onDrop = (event: DragEvent) => {
       event.preventDefault()
       setDragging(false)
+      // Claimed before anything is awaited: the DataTransfer dies with the event.
+      const handle = handleFromDrop(event)
       const file = event.dataTransfer?.files?.[0]
-      if (file) void openFile(file)
+      if (file) void openFile(file, handle)
     }
     window.addEventListener('dragover', onDragOver)
     window.addEventListener('dragleave', onDragLeave)

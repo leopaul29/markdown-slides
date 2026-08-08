@@ -64,6 +64,29 @@ export function canWatchFiles(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window
 }
 
+interface DropItem extends DataTransferItem {
+  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>
+}
+
+/**
+ * A dropped file is watchable too, but only if the handle is claimed while the
+ * drop event is still live: the browser neuters the `DataTransfer` as soon as
+ * the handler returns, so `getAsFileSystemHandle()` has to be *called*
+ * synchronously even though its result is awaited later. Hence a promise out
+ * rather than an async function. Null where the API is missing (non-Chromium),
+ * which simply means the drop loads without watching, as before.
+ */
+export function handleFromDrop(event: DragEvent): Promise<FileSystemFileHandle | null> | null {
+  const item = event.dataTransfer?.items?.[0] as DropItem | undefined
+  if (typeof item?.getAsFileSystemHandle !== 'function') return null
+  return item
+    .getAsFileSystemHandle()
+    .then((handle) =>
+      handle && handle.kind === 'file' ? (handle as FileSystemFileHandle) : null,
+    )
+    .catch(() => null)
+}
+
 interface PickedFile {
   doc: MarkdownDoc
   handle: FileSystemFileHandle

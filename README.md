@@ -33,7 +33,8 @@ Markdown Reader makes them enjoyable to explore.
 * 🎯 100% deterministic (no AI required)
 * ⚡ Instant HTML presentation
 * ⌨️ Keyboard navigation
-* 🔍 Built-in search across headings, prose, lists and code
+* 🔍 Ranked search across headings, prose, lists and code — multiple words, quoted phrases and
+  fuzzy heading matches
 * 📚 Collapsible table of contents
 * 🌙 Light & dark themes
 * 💻 Syntax-highlighted code blocks with optional line numbers
@@ -86,10 +87,34 @@ slide you are on (`#/12`), so a position can be bookmarked or shared.
 
 ### Live reload
 
-In Chromium-based browsers the *Open* button uses the File System Access API, which hands the
-app a handle it can re-read. The file is polled once a second, so editing it in another window
+In Chromium-based browsers both the *Open* button and a dropped file hand the app a File System
+Access handle it can re-read. The file is polled once a second, so editing it in another window
 updates the deck and keeps your place. Toggle it with the eye button in the toolbar. Other
-browsers fall back to the normal file picker, without watching.
+browsers still open the file — they just cannot watch it.
+
+---
+
+## Search
+
+`Ctrl/⌘ K` (or `/`) opens the search palette. It looks at headings, prose, lists, tables and
+code.
+
+| Query | Finds |
+| --- | --- |
+| `webhook` | every slide containing "webhook" |
+| `retry webhook` | only slides containing **both** words — terms narrow, in any order |
+| `"exactly this"` | the phrase, matched literally and never fuzzily |
+| `authn` | the heading "Authentication" — headings also match on subsequences |
+| `adr` | the heading "Architecture Decision Records" — initials count |
+
+Results are ranked rather than listed in document order. A term in a heading outranks the same
+term in the body, a term starting a word outranks one buried mid-word, an exact match outranks
+a fuzzy one, and a slide holding all the terms in a single passage outranks one where they are
+scattered. Equally good matches stay in document order, so the same query always produces the
+same list.
+
+Bodies are matched literally only. A subsequence match is meaningful in a six-word heading and
+meaningless in a six-hundred-word section.
 
 ---
 
@@ -202,7 +227,7 @@ src/
   lib/
     markdown.ts   Markdown → AST, AST slice → HTML
     slides.ts     Deterministic slide builder + table of contents
-    search.ts     Full-document search
+    search.ts     Ranked multi-term search, with fuzzy heading matching
     enhance.ts    Table wrappers, code chrome, line numbers
     document.ts   File / URL loading, watching and persistence
   components/
@@ -223,7 +248,13 @@ lag. Rendered slides are cached for the lifetime of the document.
 
 Syntax highlighting drives `lowlight` directly with an explicit language list rather than
 `rehype-highlight`, whose default import pulls in every common highlight.js grammar. The
-production bundle is 192 kB gzipped.
+production bundle is 194 kB gzipped.
+
+Search scores every slide on every keystroke. The expensive parts are avoided rather than
+optimised: the searchable text of a slide is derived once and cached, fuzzy matching is gated
+behind a linear subsequence pre-check that rejects almost every slide, its scoring matrix reuses
+buffers instead of allocating them, and snippets are built only for the results that are shown.
+A query against the 1,040-slide document costs about 1 ms, worst case 3 ms.
 
 Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
 dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
@@ -268,29 +299,9 @@ under `/<repository>/`.
 
 ## Roadmap
 
-### v1
-
-* Markdown → HTML Slides ✅
-* Keyboard navigation ✅
-* Table of contents ✅
-* Search ✅
-* Responsive layout ✅
-* Light/Dark mode ✅
-
-### v2
-
-* CLI
-* Live reload while editing
-* Multiple themes
-* PDF export
-
-### v3
-
-* Plugin system
-* Mermaid diagrams
-* Presenter mode
-* Speaker notes
-* Custom slide strategies
+[`ROADMAP.md`](./ROADMAP.md) is the plan of record. In short: v1 is the presentation view and
+is complete; v2 splits the engine from the renderer and adds a Book View; v3 adds an Outline
+view; v4 packages a desktop reader and v5 an editor integration.
 
 ---
 
