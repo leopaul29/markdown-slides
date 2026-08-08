@@ -95,6 +95,55 @@ page has to pass an anchor to the hook.
 
 ---
 
+### Decision
+Have the deck slide to `(0, 0)` after initialization when it has no jump of its own to replay,
+overriding whatever Reveal read from the URL.
+
+### Context
+Switching to the book view and back moved the reader forward by two or three sections, and a
+`#/9` deep link opened at the wrong place. Reveal was reading the app's own `#/12` fragment as
+its own slide index: `Location.readURL()` is called unconditionally in Reveal's `start()`, so
+`hash: false` does not prevent it, and `#/12` is exactly the format Reveal parses.
+
+### Reasoning
+Three fixes were possible: change the app's fragment format so Reveal cannot parse it, patch
+around Reveal's location controller, or state plainly in the view that the app owns the
+position. The fragment is a shipped, shareable v1 URL format and is not worth breaking, and
+reaching into Reveal's internals would break on any upgrade. Sliding to the start unless told
+otherwise costs one line and makes the ownership explicit: the URL is read by `App.tsx`, and
+`Deck.tsx` only ever goes where the app sends it.
+
+### Consequences
+Position is now single-sourced. A view added later inherits the same rule for free, because it
+gets its position from the app rather than from the address bar. The cost is that anyone reading
+`Deck.tsx` must be told why the redundant-looking `slide(0, 0)` is there — hence the comment and
+the entry in `CLAUDE.md`.
+
+---
+
+### Decision
+Tag a jump queued before Reveal is ready with the model it belongs to, instead of clearing it on
+teardown.
+
+### Context
+`docs/LESSONS.md` records the original rule: a jump queued for one document must never replay
+against the next, so the pending index was wiped in the effect's cleanup. That rule threw the
+reader's position away whenever the deck remounted without the document changing — which React
+StrictMode does on every mount, and which now happens on every view switch.
+
+### Reasoning
+The property that actually matters is "this jump belongs to *that* document", not "no jump
+survives a teardown". Storing `{ model, index }` and replaying only when the model matches keeps
+the original guarantee by identity while surviving a remount. Clearing on teardown was a proxy
+for the same idea that stopped being true the moment a second view existed.
+
+### Consequences
+Deep links and view switches restore reliably in both the dev build and production. The
+superseded rule is called out in `CLAUDE.md` so it is not "fixed" back to clearing on teardown by
+someone who finds the old note in `docs/LESSONS.md`.
+
+---
+
 ## 2026-08-03
 
 ### Decision

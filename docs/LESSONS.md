@@ -37,6 +37,10 @@
 - Trusting the browser's own scroll anchoring in a lazily rendered page. Bodies materialising above
   the viewport moved the reader; measuring the anchor before and after the fill and correcting
   `scrollTop` is a few lines and is exact.
+- Believing a browser-driving harness before checking its own preconditions. Two "bugs" were the
+  script: navigating to a URL that differs only in its fragment is not a navigation, so the app
+  never reloaded and the deep link looked broken; and a Page Down that scrolled nothing was a page
+  already at its end. Rule out the harness before debugging the product.
 
 ## Surprises
 
@@ -48,6 +52,35 @@
   lazy rendering is now shared by both views rather than reimplemented.
 - Two `IntersectionObserver`s with different root margins are a simpler answer to "what is on
   screen" than any scroll handler, and they do the work off the main thread's hot path.
+
+## Reusable Insights
+
+- In a multi-view reader, make position a single index into a model both views share. Anything
+  richer — coordinates, scroll offsets, per-view state — needs translating at every boundary, and
+  every translation is somewhere the reader's place can be lost.
+- A layering rule ("this directory imports nothing from that one") is enforceable in about thirty
+  lines: read the sources, extract their import specifiers, assert on them. Cheaper than a lint
+  plugin and it fails in the same suite as everything else.
+- Continuous lazy rendering needs three things together — a per-item height estimate, an observer
+  that fills ahead of the viewport, and an anchor correction after each fill. Any two of the three
+  still leave the page moving under the reader.
+- When a library option's *name* promises a behaviour, grep the library's source for the code path
+  before designing around it. `hash: false` did not stop reveal.js reading `location.hash`.
+- Extract an interface from implementations, not from a plan. Three strategies written first showed
+  that what they share is two helper functions; the interface predicted from the first one would
+  have forced its splitter on the others.
+- State that "must not leak into the next X" is better tagged with the X it belongs to than cleared
+  on teardown. Clearing is a proxy that breaks the moment the component's lifecycle changes.
+
+## Future Improvements
+
+- Write the browser-driving script before the feature rather than after. Every defect this session
+  came from it and none from the 87 unit tests; it would have found them hours earlier.
+- Keep that script as a *matrix* over state changes — view × strategy × reload × deep link ×
+  live reload — rather than a linear walkthrough. Each combination broke differently, and a linear
+  script only catches the one path it happens to take.
+- Capture the app's own console output in the harness from the start. The first instrumented run
+  answered in seconds what several rounds of reasoning about effect ordering had gotten wrong.
 
 ---
 
