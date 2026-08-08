@@ -53,15 +53,15 @@ None.
   open leaks, which this cleanup closed.
 - **Second view is unproven.** The roadmap's abstractions are justified by Book View existing; if
   it never ships, the current direct structure is the right one.
-- **Repo slug still `markdown-slides`** while the product is Markdown Reader everywhere else.
-  Renaming the repository also updates `BASE_PATH`, which the deploy workflow derives.
+- **The local checkout directory is still named `markdown-slides`** although the GitHub
+  repository is now `markdown-reader`. The git remote has been repointed; the next Pages deploy
+  publishes under the new `BASE_PATH`, so any previously shared `/markdown-slides/` link breaks.
 
 ## Next Actions
 
-1. Commit this snapshot and push the branch; open a PR against `main`.
+1. Open a PR against `main` for this branch.
 2. Run the app in a browser and confirm the styling and the lightbox after the Tailwind and
    `<dialog>` changes.
 3. Fix the stale `h`/`v` line in `docs/architecture-notes.md`.
-4. Rename the GitHub repository to `markdown-reader`.
-5. When starting V2: write the `fixed-length` strategy first, then extract the strategy interface
+4. When starting V2: write the `fixed-length` strategy first, then extract the strategy interface
    from the two implementations — not before.
