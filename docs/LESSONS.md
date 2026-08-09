@@ -14,7 +14,7 @@
 - Choosing a single number — a segment index — as the reader's position. View switching, strategy
   changes, live reload and `#/12` deep links all became one code path, and the second view needed
   no position state of its own.
-- Driving the real app in a headless browser again. Every one of the three bugs below was invisible
+- Driving the real app in a headless browser again. Every one of the bugs below was invisible
   to 87 passing unit tests and obvious within one scripted session.
 
 ## What Did Not Work

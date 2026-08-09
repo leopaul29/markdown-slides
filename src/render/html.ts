@@ -144,10 +144,18 @@ function textOf(node: HastElement): string {
 }
 
 function rehypeSafeUrls() {
-  return (tree: HastElement) => walk(tree)
+  return (tree: HastElement) => sanitizeUrls(tree)
 }
 
-function walk(node: HastElement): void {
+/**
+ * Strips every URL-bearing attribute that is not on the allow-list, in place.
+ *
+ * Exported for its own tests: Markdown cannot produce a `srcset` — remark never
+ * emits one and raw HTML is dropped — so the array branch below is unreachable
+ * from a rendered document and would otherwise go uncovered. It is the branch
+ * most likely to be broken by a well-meaning `typeof value === 'string'` guard.
+ */
+export function sanitizeUrls(node: HastElement): void {
   if (node.type === 'element' && node.tagName) {
     const attributes = URL_ATTRIBUTES[node.tagName]
     const properties = node.properties
@@ -173,7 +181,7 @@ function walk(node: HastElement): void {
       }
     }
   }
-  for (const child of node.children ?? []) walk(child)
+  for (const child of node.children ?? []) sanitizeUrls(child)
 }
 
 /**

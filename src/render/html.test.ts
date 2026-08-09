@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { compile } from '../engine'
-import { isSafeUrl, nodesToHtml } from './html'
+import { isSafeUrl, nodesToHtml, sanitizeUrls } from './html'
 
 /*
  * The renderer is where an untrusted document could execute script, so these
@@ -30,6 +30,38 @@ describe('url safety', () => {
   it('drops unsafe image sources', () => {
     const html = render('# T\n\n![i](javascript:alert(1))\n')
     expect(html).not.toContain('javascript:')
+  })
+
+  /*
+   * hast keeps `srcset` as an array of "url descriptor" candidates rather than
+   * a string, so this branch is the one a `typeof value === 'string'` guard
+   * would silently skip. Driven directly because Markdown cannot express a
+   * srcset — which is also why it needs a test of its own.
+   */
+  it('filters unsafe candidates out of a srcset and keeps the safe ones', () => {
+    const img = {
+      type: 'element',
+      tagName: 'img',
+      properties: {
+        srcSet: ['javascript:alert(1) 2x', 'https://example.com/i.png 1x'],
+      },
+    }
+    sanitizeUrls(img)
+    expect(img.properties.srcSet).toEqual(['https://example.com/i.png 1x'])
+  })
+
+  it('drops a srcset whose every candidate is unsafe', () => {
+    const img = {
+      type: 'element',
+      tagName: 'img',
+      properties: {
+        src: 'https://example.com/i.png',
+        srcSet: ['javascript:alert(1) 2x', 'data:text/html,<script> 1x'],
+      },
+    }
+    sanitizeUrls(img)
+    expect('srcSet' in img.properties).toBe(false)
+    expect(img.properties.src).toBe('https://example.com/i.png')
   })
 
   it('keeps ordinary links and images', () => {

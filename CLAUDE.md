@@ -30,7 +30,7 @@ publishes `dist/` to GitHub Pages from `main` with `BASE_PATH=/<repo>/`.
 Two layers with one direction of dependency: **`src/engine/` knows nothing about `src/render/`
 or `src/components/`.** That is the v2 split, and `src/engine/boundary.test.ts` enforces it.
 
-```
+```text
 markdown text
   → normalize()      unescape exporter-mangled punctuation, CRLF → LF   (engine/markdown.ts)
   → parseMarkdown()  remark + GFM → mdast Root                          (engine/markdown.ts)

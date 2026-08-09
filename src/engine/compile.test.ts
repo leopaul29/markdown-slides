@@ -140,6 +140,22 @@ describe('auto splitting', () => {
     }
   })
 
+  it('does not strand a heading whose content is too heavy to share its part', () => {
+    // The heading opens a part and the block after it is heavier than the whole
+    // budget, so the heading is flushed alone — a part that *is* just a heading.
+    const prose = 'Prose here. '.repeat(60)
+    const code = '```js\n' + Array.from({ length: 40 }, (_, i) => `l${i}()`).join('\n') + '\n```'
+    const model = compile(`# S\n\n${prose}\n\n### Next\n\n${code}\n`, { maxWeight: 10 })
+    for (const segment of model.segments.slice(0, -1)) {
+      expect(segment.nodes[segment.nodes.length - 1]?.type).not.toBe('heading')
+    }
+    // And the heading travels with its content rather than being dropped.
+    const withCode = model.segments.find((segment) =>
+      segment.nodes.some((node) => node.type === 'code'),
+    )
+    expect(withCode?.nodes[0].type).toBe('heading')
+  })
+
   it('is deterministic', () => {
     const a = compile(doc)
     const b = compile(doc)

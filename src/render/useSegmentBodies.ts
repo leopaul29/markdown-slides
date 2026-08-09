@@ -35,7 +35,14 @@ export function useSegmentBodies(
 ): void {
   const htmlCache = useRef(new Map<number, string>())
   const anchorRef = useRef(anchor)
-  anchorRef.current = anchor
+
+  // Declared first so the three layout effects run in the order they depend on:
+  // publish the anchor, wipe the previous document's markers, then fill. Written
+  // in an effect rather than during render, because React may discard a render
+  // and the anchor would then come from work that never committed.
+  useLayoutEffect(() => {
+    anchorRef.current = anchor
+  }, [anchor])
 
   const htmlFor = useCallback((segment: Segment): string => {
     const cached = htmlCache.current.get(segment.index)

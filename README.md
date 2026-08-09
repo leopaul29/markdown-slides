@@ -46,7 +46,7 @@ Markdown Reader makes them enjoyable to explore.
 * 📊 Scrollable tables
 * 📱 Responsive layout
 * 🔄 Live reload — edit the file in your editor and the view follows
-* 🔗 Shareable `#/12` links to any section, in either view
+* 🔗 Shareable `#/12` links to any segment, in either view
 * 🔒 Runs entirely in your browser — nothing is uploaded
 
 ---
@@ -90,9 +90,9 @@ There are four ways to load Markdown:
   be served with permissive CORS headers.
 
 The last document you opened is restored when you reload the page, and the URL carries the
-section you are on (`#/12`), so a position can be bookmarked or shared. Position is one number
+segment you are on (`#/12`) — a whole section, or one part of a long one. Position is one number
 in both views, so switching between them — or changing how the document is divided — keeps your
-place.
+place, and the same link opens the same place in either.
 
 ### Live reload
 
@@ -110,20 +110,20 @@ code.
 
 | Query | Finds |
 | --- | --- |
-| `webhook` | every section containing "webhook" |
-| `retry webhook` | only sections containing **both** words — terms narrow, in any order |
+| `webhook` | every segment containing "webhook" |
+| `retry webhook` | only segments containing **both** words — terms narrow, in any order |
 | `"exactly this"` | the phrase, matched literally and never fuzzily |
 | `authn` | the heading "Authentication" — headings also match on subsequences |
 | `adr` | the heading "Architecture Decision Records" — initials count |
 
 Results are ranked rather than listed in document order. A term in a heading outranks the same
 term in the body, a term starting a word outranks one buried mid-word, an exact match outranks
-a fuzzy one, and a section holding all the terms in a single passage outranks one where they are
+a fuzzy one, and a segment holding all the terms in a single passage outranks one where they are
 scattered. Equally good matches stay in document order, so the same query always produces the
 same list.
 
 Bodies are matched literally only. A subsequence match is meaningful in a six-word heading and
-meaningless in a six-hundred-word section.
+meaningless in a six-hundred-word segment.
 
 ---
 
@@ -287,7 +287,7 @@ A query against a 1,000-section document costs about 1 ms, worst case 3 ms.
 
 Opening an untrusted document does not let it run script: raw HTML embedded in the Markdown is
 dropped rather than executed, and link and image URLs are restricted to safe schemes, so a
-`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their section
+`[click](javascript:…)` link cannot fire. Remote images may still be fetched when their segment
 renders; links are only followed when you activate them.
 
 ---

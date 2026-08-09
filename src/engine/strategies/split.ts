@@ -65,11 +65,18 @@ export function chunkByWeight(nodes: RootContent[], maxWeight: number): RootCont
   return chunks
 }
 
-/** Never let a part end on a heading whose content lives in the next one. */
+/**
+ * Never let a part end on a heading whose content lives in the next one — not
+ * even when the heading is the only thing in the part. That happens when a
+ * heading opens a part and the block after it is heavier than `maxWeight`: the
+ * heading is flushed on its own, and a part that is *just* a heading is the
+ * worst version of the orphan this exists to prevent. Emptied parts are dropped
+ * by the filter below.
+ */
 export function rebalanceOrphanHeadings(parts: RootContent[][]): RootContent[][] {
   for (let i = 0; i < parts.length - 1; i += 1) {
     const part = parts[i]
-    while (part.length > 1 && part[part.length - 1].type === 'heading') {
+    while (part.length > 0 && part[part.length - 1].type === 'heading') {
       parts[i + 1].unshift(part.pop() as RootContent)
     }
   }
