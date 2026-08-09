@@ -8,13 +8,18 @@ engine extracted alongside a second view rather than ahead of one.
 
 ## Status
 
-**V2 is complete**: the engine is split from the renderer behind `compile()`, the Book View ships,
-three segmentation strategies are selectable, and the reader's position survives switching between
-any of them. `db97e6a` is committed and pushed to
-`origin/claude/v2-engine-extraction-book-view-g3aofl`; no PR is open. Typecheck, 87 tests and the
-production build pass, and the work was verified in a headless browser across both views, both
-themes, three strategies and a 17,220-line document. Only the three wrap-up doc files are
-uncommitted.
+**V2 is complete and in review**: the engine is split from the renderer behind `compile()`, the
+Book View ships, three segmentation strategies are selectable, and the reader's position survives
+switching between any of them. It is [PR #4](https://github.com/leopaul29/markdown-reader/pull/4),
+open against `main` from `claude/v2-engine-extraction-book-view-g3aofl`, with CI green. Typecheck,
+96 tests and the production build pass, and the work was verified in a headless browser across
+both views, both themes, three strategies and a 17,220-line document.
+
+The first CodeRabbit review has been worked through: it found one genuine defect (a part that was
+only an orphan heading, predating v2) and one real gap in the boundary test (re-exports and dynamic
+imports went uninspected); both are fixed with tests. Two findings were declined on the record —
+reformatting `docs/DECISIONS.md` for MD024, which CodeRabbit then withdrew, and remapping position
+through the section on a strategy change.
 
 ## Completed
 
@@ -39,8 +44,8 @@ uncommitted.
 
 ## In Progress
 
-- `docs/DECISIONS.md` and `docs/LESSONS.md` carry uncommitted wrap-up additions, and this snapshot
-  is uncommitted. Nothing else is mid-change.
+- Review follow-ups on PR #4 as they arrive. Nothing else is mid-change; the working tree is
+  clean apart from this snapshot.
 
 ## Blockers
 
@@ -61,9 +66,11 @@ None.
 
 ## Next Actions
 
-1. Commit the three wrap-up doc files and push.
-2. Open a PR against `main` for `claude/v2-engine-extraction-book-view-g3aofl`.
-3. Start V3 (Outline view) against the same model; treat it as the test of whether `compile()` can
+1. Merge PR #4 once the review settles.
+2. Start V3 (Outline view) against the same model; treat it as the test of whether `compile()` can
    be frozen as-is.
-4. If the Outline view wants it, teach `Sidebar` to scroll its active entry into view — it will be
+3. If the Outline view wants it, teach `Sidebar` to scroll its active entry into view — it will be
    shared by three views by then.
+4. Optional, raised in review: anchor the position on the source line of a segment's first node
+   (`nodes[0].position`) so a strategy change lands on the same *content* rather than the same
+   index.

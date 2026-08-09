@@ -19,7 +19,10 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry)
     if (statSync(path).isDirectory()) return sourceFiles(path)
-    return path.endsWith('.ts') && path !== selfPath ? [path] : []
+    // `.tsx` as well as `.ts`: a JSX file in the engine would be a crossing in
+    // itself, which is all the more reason for this test to be the one that
+    // says so rather than to skip the file.
+    return /\.tsx?$/.test(path) && path !== selfPath ? [path] : []
   })
 }
 
