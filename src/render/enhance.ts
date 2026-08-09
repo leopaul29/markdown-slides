@@ -1,11 +1,11 @@
-import { languageFromClasses } from './markdown'
+import { languageFromClasses } from './html'
 
 /**
- * Progressive enhancement applied to rendered slide HTML: scrollable tables,
+ * Progressive enhancement applied to rendered segment HTML: scrollable tables,
  * code block chrome and safe external links. Idempotent: re-running it on an
- * already enhanced body changes nothing.
+ * already enhanced body changes nothing. Shared by every HTML view.
  */
-export function enhanceSlideBody(root: HTMLElement): void {
+export function enhanceSegmentBody(root: HTMLElement): void {
   for (const table of Array.from(root.querySelectorAll('table'))) {
     if (table.parentElement?.classList.contains('table-scroll')) continue
     const wrapper = document.createElement('div')

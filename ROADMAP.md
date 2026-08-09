@@ -70,21 +70,34 @@ Nothing. The v1 scope and its polish are complete.
 
 ---
 
-## V2 — Engine extraction + Book View
+## V2 — Engine extraction + Book View ✅ shipped
 
 The first version with two views. **This is the version that justifies the abstractions**,
-and it should be built in that order: extract the engine *while* writing the second view,
+and it was built in that order: the engine was extracted *while* the second view was written,
 not before.
 
-* Split the engine from the renderer:
-  * `compile(markdown, options)` as the single public entry point
-  * a document model that carries no renderer-specific fields
-  * Reveal becomes one consumer of that model, not the shape of it
-* **Book View** — continuous scrolling with chapter navigation, for readers who want flow
-  rather than pagination
-* View switcher in the toolbar, with the choice persisted
-* Named strategies for how a document is divided (`h1`, `fixed-length`, …), selectable per
-  document
+* Engine split from the renderer:
+  * `compile(markdown, options)` is the single entry point (`src/engine/`)
+  * the model carries sections, segments and mdast nodes — no renderer-specific fields
+  * Reveal is one consumer of that model; `src/render/` owns every line of HTML
+  * the boundary is a test (`src/engine/boundary.test.ts`), not a paragraph: nothing under
+    `src/engine/` may import a view, a renderer or React
+* **Book View** — the whole document as one scrolling page, with the table of contents as its
+  chapter navigation and bodies rendered as they approach the viewport
+* View switcher in the toolbar (`V`), with the choice persisted
+* Named strategies for how a document is divided — `headings` (the v1 rules), `h1` and
+  `fixed-length` — selectable in the toolbar and persisted
+* Position is one number, a segment index, so it survives switching views, changing strategy,
+  a live reload and a `#/12` deep link
+
+### Still open from v2
+
+* `compile()` is the entry point but is still marked experimental. Freezing it as the public
+  API is worth doing only once a third consumer — the Outline view — has pulled on it.
+* The sidebar does not scroll the active entry into view, which is more noticeable now that a
+  document can be read continuously.
+* The app still ignores a hash typed into the address bar of an already-open document; deep
+  links are read on load.
 
 ---
 
@@ -92,7 +105,8 @@ not before.
 
 * Collapsible tree of the whole document; expand a node to read it in place
 * Fastest way to answer "what is in this document" for a 3,000-line file
-* Cross-view state: the current position survives switching views
+* Cross-view state: shipped in v2 — position is a segment index every view understands, so
+  the outline gets it for free
 
 ---
 

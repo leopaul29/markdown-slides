@@ -1,112 +1,59 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import Reveal from 'reveal.js/dist/reveal.esm.js'
 import type { RevealApi } from 'reveal.js/dist/reveal.esm.js'
-import type { Deck as DeckModel, Slide } from '../lib/slides'
-import { nodesToHtml } from '../lib/markdown'
-import { applyLineNumbers, enhanceSlideBody } from '../lib/enhance'
+import type { DocumentModel, Segment } from '../engine'
+import { expandRendered, initialWindow, useSegmentBodies } from '../render/useSegmentBodies'
+import type { ViewHandle, ViewProps } from './view'
 
-export interface DeckHandle {
-  goTo(index: number): void
-  toggleOverview(): void
-}
-
-interface DeckProps {
-  deck: DeckModel
-  lineNumbers: boolean
-  onSlideChange: (index: number) => void
-  onImageClick: (src: string, alt: string) => void
-}
-
-/** How many slides on each side of the current one are rendered ahead of time. */
+/** How many segments on each side of the current one are rendered ahead of time. */
 const PRELOAD_RADIUS = 2
 
-export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
-  { deck, lineNumbers, onSlideChange, onImageClick },
+/**
+ * The presentation view: Reveal.js driven by the document model.
+ *
+ * Reveal's horizontal axis is one section, its vertical axis the parts of that
+ * section. The model does not carry those coordinates — they are derived here,
+ * which is the whole point of the split: a section is a model idea, a column is
+ * Reveal's.
+ */
+export const Deck = forwardRef<ViewHandle, ViewProps>(function Deck(
+  { model, lineNumbers, onSegmentChange, onImageClick },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null)
   const revealRef = useRef<RevealApi | null>(null)
-  /** A jump requested before Reveal finished initializing. */
-  const pendingIndex = useRef<number | null>(null)
-  const htmlCache = useRef(new Map<number, string>())
-  const [rendered, setRendered] = useState<Set<number>>(() => initialWindow(deck))
+  /**
+   * A jump requested before Reveal finished initializing, tagged with the model
+   * it was meant for: a jump queued for one document must never replay against
+   * the next. Tagging rather than clearing on teardown, because React remounts
+   * this component without warning (StrictMode does it on every mount) and the
+   * reader's position would be thrown away with it.
+   */
+  const pendingJump = useRef<{ model: DocumentModel; index: number } | null>(null)
+  const [rendered, setRendered] = useState<Set<number>>(() =>
+    initialWindow(model, PRELOAD_RADIUS),
+  )
 
-  // Rendering every slide up front is what makes huge documents feel slow, so
-  // slide bodies are only converted to HTML once they come within reach.
+  useSegmentBodies(rootRef, model, rendered, lineNumbers)
+
+  // Rendering every segment up front is what makes huge documents feel slow, so
+  // bodies are only converted to HTML once they come within reach.
   const preload = useCallback(
     (index: number) => {
-      setRendered((previous) => {
-        const next = new Set(previous)
-        let changed = false
-        for (let i = index - PRELOAD_RADIUS; i <= index + PRELOAD_RADIUS; i += 1) {
-          if (i >= 0 && i < deck.slides.length && !next.has(i)) {
-            next.add(i)
-            changed = true
-          }
-        }
-        return changed ? next : previous
-      })
+      setRendered(expandRendered(index, PRELOAD_RADIUS, model.segments.length))
     },
-    [deck],
+    [model],
   )
-
-  const htmlFor = useCallback(
-    (slide: Slide): string => {
-      const cached = htmlCache.current.get(slide.index)
-      if (cached !== undefined) return cached
-      const html = nodesToHtml(slide.nodes)
-      htmlCache.current.set(slide.index, html)
-      return html
-    },
-    [],
-  )
-
-  // A new document reuses the same DOM nodes, so clear what the previous one
-  // left behind. Declared first so it runs before the fill effect below.
-  useLayoutEffect(() => {
-    htmlCache.current = new Map()
-    for (const body of bodies(rootRef.current)) {
-      body.innerHTML = ''
-      delete body.dataset.filled
-    }
-  }, [deck])
 
   useEffect(() => {
-    setRendered(initialWindow(deck))
-  }, [deck])
-
-  /*
-   * Slide HTML is injected directly rather than through
-   * `dangerouslySetInnerHTML`: React re-writes that property on every render,
-   * which would throw away the code-block and table wrappers added below.
-   */
-  useLayoutEffect(() => {
-    for (const body of bodies(rootRef.current)) {
-      const index = Number(body.dataset.index)
-      const slide = deck.slides[index]
-      if (!slide || !rendered.has(index)) continue
-      if (body.dataset.filled !== 'true') {
-        body.innerHTML = htmlFor(slide)
-        body.dataset.filled = 'true'
-        enhanceSlideBody(body)
-      }
-      applyLineNumbers(body, lineNumbers)
-    }
-  }, [deck, rendered, lineNumbers, htmlFor])
+    setRendered(initialWindow(model, PRELOAD_RADIUS))
+  }, [model])
 
   // Kept in a ref so that a new callback identity never re-initializes Reveal.
-  const onSlideChangeRef = useRef(onSlideChange)
+  const onSegmentChangeRef = useRef(onSegmentChange)
   useEffect(() => {
-    onSlideChangeRef.current = onSlideChange
-  }, [onSlideChange])
+    onSegmentChangeRef.current = onSegmentChange
+  }, [onSegmentChange])
 
   useEffect(() => {
     const element = rootRef.current
@@ -133,10 +80,11 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
 
     let disposed = false
     const handleChange = (event: { indexh: number; indexv: number }) => {
-      const slide = deck.columns[event.indexh]?.[event.indexv ?? 0]
-      if (!slide) return
-      preload(slide.index)
-      onSlideChangeRef.current(slide.index)
+      const section = model.sections[event.indexh]
+      const index = section?.segments[event.indexv ?? 0]
+      if (index === undefined) return
+      preload(index)
+      onSegmentChangeRef.current(index)
     }
 
     // The ref is published only once Reveal is ready: navigation calls made
@@ -147,12 +95,21 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
       revealRef.current = instance
 
       // Replay a jump requested while the deck was still starting up.
-      const pending = pendingIndex.current
-      pendingIndex.current = null
-      const pendingSlide = pending !== null ? deck.slides[pending] : undefined
-      if (pendingSlide) {
-        const [h, v] = coordsOf(deck, pendingSlide)
+      const pending = pendingJump.current
+      pendingJump.current = null
+      const pendingSegment = pending?.model === model ? model.segments[pending.index] : undefined
+      if (pendingSegment) {
+        const [h, v] = coordsOf(pendingSegment)
         instance.slide(h, v)
+      } else {
+        /*
+         * Reveal reads `location.hash` on startup whatever `hash: false` says,
+         * and the app's own `#/12` fragment is in exactly the format Reveal
+         * parses — so without this it would silently open at horizontal slide
+         * 12. The app owns the position; the deck starts at the beginning
+         * unless it was told otherwise.
+         */
+        instance.slide(0, 0)
       }
 
       const { h, v } = instance.getIndices()
@@ -162,32 +119,30 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
     return () => {
       disposed = true
       revealRef.current = null
-      // A jump queued for this deck must not be replayed against the next one.
-      pendingIndex.current = null
       try {
         instance.destroy()
       } catch {
         /* Reveal throws if it never finished initializing; nothing to clean. */
       }
     }
-  }, [deck, preload])
+  }, [model, preload])
 
   useImperativeHandle(
     ref,
     () => ({
       goTo(index) {
-        const slide = deck.slides[index]
-        if (!slide) return
+        const segment = model.segments[index]
+        if (!segment) return
         preload(index)
-        const [h, v] = coordsOf(deck, slide)
+        const [h, v] = coordsOf(segment)
         if (revealRef.current) revealRef.current.slide(h, v)
-        else pendingIndex.current = index
+        else pendingJump.current = { model, index }
       },
       toggleOverview() {
         revealRef.current?.toggleOverview()
       },
     }),
-    [deck, preload],
+    [model, preload],
   )
 
   useEffect(() => {
@@ -195,7 +150,7 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
     if (!element) return
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement
-      if (target.tagName === 'IMG' && target.closest('.slide-body')) {
+      if (target.tagName === 'IMG' && target.closest('.segment-body')) {
         const image = target as HTMLImageElement
         onImageClick(image.currentSrc || image.src, image.alt)
       }
@@ -204,27 +159,27 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
     return () => element.removeEventListener('click', onClick)
   }, [onImageClick])
 
-  const renderSlide = (slide: Slide) => (
-    <section key={slide.index} data-slide-index={slide.index}>
+  const renderSlide = (segment: Segment) => (
+    <section key={segment.index} data-segment-index={segment.index}>
       <div className="slide-inner">
         <article className="slide-content">
-          {slide.title ? (
-            <header className="slide-head">
+          {segment.title ? (
+            <header className="segment-head">
               <div>
-                {slide.group ? <div className="slide-eyebrow">{slide.group}</div> : null}
-                <h2 className={slide.level === 1 ? 'slide-title' : 'slide-title sub'}>
-                  {slide.title}
+                {segment.group ? <div className="segment-eyebrow">{segment.group}</div> : null}
+                <h2 className={segment.level === 1 ? 'segment-title' : 'segment-title sub'}>
+                  {segment.title}
                 </h2>
               </div>
-              {slide.partCount > 1 ? (
-                <span className="slide-part">
-                  {slide.part}/{slide.partCount}
+              {segment.partCount > 1 ? (
+                <span className="segment-part">
+                  {segment.part}/{segment.partCount}
                 </span>
               ) : null}
             </header>
           ) : null}
-          {/* Filled by the layout effect above; React must not own its children. */}
-          <div className="slide-body md" data-index={slide.index} />
+          {/* Filled by `useSegmentBodies`; React must not own its children. */}
+          <div className="segment-body md" data-index={segment.index} />
         </article>
       </div>
     </section>
@@ -233,11 +188,13 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
   return (
     <div className="reveal" ref={rootRef}>
       <div className="slides">
-        {deck.columns.map((column, h) =>
-          column.length === 1 ? (
-            renderSlide(column[0])
+        {model.sections.map((section) =>
+          section.segments.length === 1 ? (
+            renderSlide(model.segments[section.segments[0]])
           ) : (
-            <section key={`stack-${h}`}>{column.map(renderSlide)}</section>
+            <section key={`stack-${section.index}`}>
+              {section.segments.map((index) => renderSlide(model.segments[index]))}
+            </section>
           ),
         )}
       </div>
@@ -245,21 +202,7 @@ export const Deck = forwardRef<DeckHandle, DeckProps>(function Deck(
   )
 })
 
-/**
- * Reveal's horizontal / vertical coordinates for a slide. The model does not
- * carry them: a section is one column, and its parts stack inside it.
- */
-function coordsOf(deck: DeckModel, slide: Slide): [number, number] {
-  const h = deck.columns.findIndex((column) => column[0]?.index === slide.index - (slide.part - 1))
-  return [Math.max(h, 0), slide.part - 1]
-}
-
-function bodies(root: HTMLElement | null): HTMLElement[] {
-  return root ? Array.from(root.querySelectorAll<HTMLElement>('.slide-body')) : []
-}
-
-function initialWindow(deck: DeckModel): Set<number> {
-  const window = new Set<number>()
-  for (let i = 0; i <= PRELOAD_RADIUS && i < deck.slides.length; i += 1) window.add(i)
-  return window
+/** Reveal's horizontal / vertical coordinates for a segment. */
+function coordsOf(segment: Segment): [number, number] {
+  return [segment.section, segment.part - 1]
 }

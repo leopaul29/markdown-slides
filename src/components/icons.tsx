@@ -88,6 +88,20 @@ export const CloseIcon = (props: IconProps) => (
   </Svg>
 )
 
+export const PresentIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <rect x="3" y="4" width="18" height="12" rx="1" />
+    <path d="M12 16v4M8 21h8" />
+  </Svg>
+)
+
+export const BookIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z" />
+    <path d="M20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z" />
+  </Svg>
+)
+
 export const WatchIcon = (props: IconProps) => (
   <Svg {...props}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />

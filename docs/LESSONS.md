@@ -1,5 +1,89 @@
 # Lessons Learned
 
+## 2026-08-08 — v2: engine extraction + Book View
+
+## What Worked
+
+- Writing all three segmentation strategies before extracting their interface. What they share
+  turned out to be two helper functions, not a pipeline; an interface drawn from the first
+  implementation would have forced its heading-aware splitter onto `fixed-length`, which does not
+  want it. "Write the second implementation first" was the right advice and it cost nothing.
+- Making the architectural rule executable. `src/engine/boundary.test.ts` reads every engine
+  source and fails on an import of a view, a renderer, React or Reveal. A rule that only lives in
+  a document survives exactly as long as the next person who has not read it.
+- Choosing a single number — a segment index — as the reader's position. View switching, strategy
+  changes, live reload and `#/12` deep links all became one code path, and the second view needed
+  no position state of its own.
+- Driving the real app in a headless browser again. Every one of the bugs below was invisible
+  to 87 passing unit tests and obvious within one scripted session.
+
+## What Did Not Work
+
+- Assuming a library respects the config that names its behaviour. Reveal.js calls
+  `Location.readURL()` unconditionally at startup, so `hash: false` does not stop it reading
+  `location.hash` — and the app's own `#/12` fragment is exactly the format Reveal parses. The
+  deck silently opened at whatever horizontal slide the fragment named. Read the library's source
+  before trusting the option name.
+- Clearing state on teardown to keep it from leaking into the next document. The queued jump in
+  `Deck.tsx` was wiped on unmount, which was correct for a document change and wrong for a
+  remount — React StrictMode remounts a component the moment it mounts, so every jump issued
+  before Reveal finished initializing was thrown away. Tagging the state with the model it belongs
+  to keeps both properties.
+- Reading a ref that another effect owns, in the effect that just changed the value it derives
+  from. The position-restore effect fell back to `currentIndexRef`, which is synced by a separate
+  effect on the *committed* state — so on a double invocation it read the previous position and
+  sent the reader back to it. Guard on identity (which model, which view) rather than on a value
+  that is about to be overwritten.
+- Trusting the browser's own scroll anchoring in a lazily rendered page. Bodies materialising above
+  the viewport moved the reader; measuring the anchor before and after the fill and correcting
+  `scrollTop` is a few lines and is exact.
+- Believing a browser-driving harness before checking its own preconditions. Two "bugs" were the
+  script: navigating to a URL that differs only in its fragment is not a navigation, so the app
+  never reloaded and the deep link looked broken; and a Page Down that scrolled nothing was a page
+  already at its end. Rule out the harness before debugging the product.
+
+## Surprises
+
+- The engine/renderer split made the presentation *faster*, not slower: deriving Reveal's
+  coordinates from `[segment.section, segment.part - 1]` replaced a linear scan over the column
+  list on every jump.
+- A 17,220-line document (602 sections) opens in ~1.1 s in the production build and the book view
+  mounts over it in ~0.2 s — both better than the v1 figure for a smaller document, because the
+  lazy rendering is now shared by both views rather than reimplemented.
+- Two `IntersectionObserver`s with different root margins are a simpler answer to "what is on
+  screen" than any scroll handler, and they do the work off the main thread's hot path.
+
+## Reusable Insights
+
+- In a multi-view reader, make position a single index into a model both views share. Anything
+  richer — coordinates, scroll offsets, per-view state — needs translating at every boundary, and
+  every translation is somewhere the reader's place can be lost.
+- A layering rule ("this directory imports nothing from that one") is enforceable in about thirty
+  lines: read the sources, extract their import specifiers, assert on them. Cheaper than a lint
+  plugin and it fails in the same suite as everything else.
+- Continuous lazy rendering needs three things together — a per-item height estimate, an observer
+  that fills ahead of the viewport, and an anchor correction after each fill. Any two of the three
+  still leave the page moving under the reader.
+- When a library option's *name* promises a behaviour, grep the library's source for the code path
+  before designing around it. `hash: false` did not stop reveal.js reading `location.hash`.
+- Extract an interface from implementations, not from a plan. Three strategies written first showed
+  that what they share is two helper functions; the interface predicted from the first one would
+  have forced its splitter on the others.
+- State that "must not leak into the next X" is better tagged with the X it belongs to than cleared
+  on teardown. Clearing is a proxy that breaks the moment the component's lifecycle changes.
+
+## Future Improvements
+
+- Write the browser-driving script before the feature rather than after. Every defect this session
+  came from it and none from the 87 unit tests; it would have found them hours earlier.
+- Keep that script as a *matrix* over state changes — view × strategy × reload × deep link ×
+  live reload — rather than a linear walkthrough. Each combination broke differently, and a linear
+  script only catches the one path it happens to take.
+- Capture the app's own console output in the harness from the start. The first instrumented run
+  answered in seconds what several rounds of reasoning about effect ordering had gotten wrong.
+
+---
+
 ## 2026-08-03
 
 ## What Worked
@@ -87,7 +171,7 @@
 
 ---
 
-## 2026-08-08
+## 2026-08-08 — over-engineering cleanup
 
 ## What Worked
 

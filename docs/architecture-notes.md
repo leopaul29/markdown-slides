@@ -32,6 +32,12 @@ one public entry point, and the removal of three renderer-specific leaks listed 
 
 ## The leaks that actually matter
 
+> **Resolved in v2 (2026-08-08).** All three leaks below are closed and the naming collision
+> with them: the model lives in `src/engine/model.ts` as `DocumentModel`, a section owns its
+> segment indices instead of a `columns` list, `nodesToHtml` moved to `src/render/html.ts`, and
+> `src/engine/boundary.test.ts` fails the build if the engine imports a renderer again. The
+> table is kept as the statement of what was wrong.
+
 These are the places where Reveal.js has shaped the model. They are the real work item, and
 they are small:
 
@@ -169,6 +175,13 @@ than a product.
 
 The first block is a few hours and is entirely reversible. The second block is where the
 architecture actually gets proven, and it wants a real second view to prove it against.
+
+> **What actually happened (v2).** The order held, with one change: rather than `fixed-length`
+> alone, three strategies were written before any interface was extracted, and what they shared
+> turned out to be two helper functions rather than a pipeline. The Book View cost the navigation
+> work this document predicted — lazy rendering with placeholder heights, scroll anchoring, and
+> position reporting — and none of it needed a `Renderer` interface. `compile()` is the entry
+> point and is still marked experimental; freezing it waits for the Outline view.
 
 ---
 

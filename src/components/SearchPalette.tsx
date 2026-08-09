@@ -1,39 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { searchDeck, type SearchSegment } from '../lib/search'
+import { searchDocument, type TextRun } from '../lib/search'
 import { useDialogFocus } from '../lib/useDialogFocus'
-import type { Deck } from '../lib/slides'
+import type { DocumentModel } from '../engine'
 
 interface SearchPaletteProps {
-  deck: Deck
+  model: DocumentModel
   onClose: () => void
-  onSelect: (slideIndex: number) => void
+  onSelect: (segmentIndex: number) => void
 }
 
 const RESULT_ID_PREFIX = 'search-result-'
 
 /** Renders pre-split text, so a match is highlighted without building HTML. */
-function Highlighted({ segments }: { segments: SearchSegment[] }) {
+function Highlighted({ runs }: { runs: TextRun[] }) {
   return (
     <>
-      {segments.map((segment, index) =>
-        segment.match ? (
-          <mark key={index}>{segment.text}</mark>
-        ) : (
-          <span key={index}>{segment.text}</span>
-        ),
+      {runs.map((run, index) =>
+        run.match ? <mark key={index}>{run.text}</mark> : <span key={index}>{run.text}</span>,
       )}
     </>
   )
 }
 
-export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
+export function SearchPalette({ model, onClose, onSelect }: SearchPaletteProps) {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const paletteRef = useDialogFocus<HTMLDivElement>()
 
-  const results = useMemo(() => searchDeck(deck, query), [deck, query])
+  const results = useMemo(() => searchDocument(model, query), [model, query])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -52,7 +48,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
   const commit = (index: number) => {
     const result = results[index]
     if (!result) return
-    onSelect(result.slide.index)
+    onSelect(result.segment.index)
     onClose()
   }
 
@@ -112,7 +108,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
           {results.map((result, index) => (
             <button
               type="button"
-              key={`${result.slide.index}-${index}`}
+              key={`${result.segment.index}-${index}`}
               id={`${RESULT_ID_PREFIX}${index}`}
               role="option"
               aria-selected={index === selected}
@@ -122,19 +118,19 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
               onClick={() => commit(index)}
             >
               <span className="result-title">
-                {result.slide.group ? (
-                  <span className="muted">{result.slide.group} › </span>
+                {result.segment.group ? (
+                  <span className="muted">{result.segment.group} › </span>
                 ) : null}
-                {result.title.length > 0 ? <Highlighted segments={result.title} /> : 'Overview'}
-                {result.slide.partCount > 1 ? (
+                {result.title.length > 0 ? <Highlighted runs={result.title} /> : 'Overview'}
+                {result.segment.partCount > 1 ? (
                   <span className="muted">
                     {' '}
-                    ({result.slide.part}/{result.slide.partCount})
+                    ({result.segment.part}/{result.segment.partCount})
                   </span>
                 ) : null}
               </span>
               <span className="result-snippet">
-                <Highlighted segments={result.snippet} />
+                <Highlighted runs={result.snippet} />
               </span>
             </button>
           ))}
@@ -144,7 +140,7 @@ export function SearchPalette({ deck, onClose, onSelect }: SearchPaletteProps) {
             <span className="kbd">↑</span> <span className="kbd">↓</span> navigate
           </span>
           <span>
-            <span className="kbd">↵</span> jump to slide
+            <span className="kbd">↵</span> jump to section
           </span>
           <span>
             <span className="kbd">Esc</span> close

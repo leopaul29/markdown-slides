@@ -1,18 +1,18 @@
-import type { Deck, Slide } from './slides'
+import type { DocumentModel, Segment } from '../engine'
 
 /** A run of characters that is either part of a match or ordinary text. */
-export interface SearchSegment {
+export interface TextRun {
   text: string
   match: boolean
 }
 
 export interface SearchResult {
-  slide: Slide
-  /** The slide title, split so the matched characters can be highlighted. */
-  title: SearchSegment[]
+  segment: Segment
+  /** The segment title, split so the matched characters can be highlighted. */
+  title: TextRun[]
   /** Snippet around the best body match, split the same way. */
-  snippet: SearchSegment[]
-  /** Ranking score. Higher is better; a pure function of the deck and query. */
+  snippet: TextRun[]
+  /** Ranking score. Higher is better; a pure function of the model and query. */
   score: number
 }
 
@@ -42,7 +42,7 @@ const MAX_HIGHLIGHTS_PER_TERM = 20
  * a term in the title beats a term in the body; a term that starts a word
  * beats one buried inside another word; an exact match beats a fuzzy one;
  * a query whose terms all land in one passage beats one whose terms are
- * scattered across the slide.
+ * scattered across the segment.
  */
 const TITLE_EXACT = 1000
 const TITLE_BOUNDARY_BONUS = 300
@@ -63,21 +63,21 @@ interface SearchableText {
 /**
  * Collapsing whitespace and lower-casing a whole document on every keystroke is
  * the expensive part of searching, and the result never changes for a given
- * slide — so it is derived once and kept for as long as the slide lives.
+ * segment — so it is derived once and kept for as long as the segment lives.
  */
-const cache = new WeakMap<Slide, SearchableText>()
+const cache = new WeakMap<Segment, SearchableText>()
 
-function searchable(slide: Slide): SearchableText {
-  const cached = cache.get(slide)
+function searchable(segment: Segment): SearchableText {
+  const cached = cache.get(segment)
   if (cached) return cached
-  const text = slide.text.replace(/\s+/g, ' ').trim()
+  const text = segment.text.replace(/\s+/g, ' ').trim()
   const derived: SearchableText = {
     text,
     lower: text.toLowerCase(),
-    title: slide.title,
-    titleLower: slide.title.toLowerCase(),
+    title: segment.title,
+    titleLower: segment.title.toLowerCase(),
   }
-  cache.set(slide, derived)
+  cache.set(segment, derived)
   return derived
 }
 
@@ -106,33 +106,33 @@ export function parseQuery(query: string): QueryTerm[] {
 /**
  * Search over headings, paragraphs, lists, tables and code.
  *
- * Every term must be found somewhere in the slide, in the title or in the body.
+ * Every term must be found somewhere in the segment, in the title or in the body.
  * Titles additionally accept a fuzzy (subsequence) match, so `authn` finds
  * "Authentication" — the body does not, because in a long paragraph a
  * subsequence match means nothing.
  *
- * Linear over the slide list, then a sort: instant for documents far larger
+ * Linear over the segment list, then a sort: instant for documents far larger
  * than the 10k-line target.
  */
-export function searchDeck(deck: Deck, query: string, limit = 40): SearchResult[] {
+export function searchDocument(model: DocumentModel, query: string, limit = 40): SearchResult[] {
   const terms = parseQuery(query)
   if (terms.length === 0) return []
 
   const matches: Match[] = []
-  for (const slide of deck.slides) {
-    const match = matchInSlide(slide, terms)
+  for (const segment of model.segments) {
+    const match = matchInSegment(segment, terms)
     if (match) matches.push(match)
   }
 
   // Reading order breaks ties, so equally good matches keep document order.
-  matches.sort((a, b) => b.score - a.score || a.slide.index - b.slide.index)
+  matches.sort((a, b) => b.score - a.score || a.segment.index - b.segment.index)
   // Snippets are the expensive half and only the visible results need one.
   return matches.slice(0, limit).map((match) => present(match, terms))
 }
 
 /** A scored hit, before the work of rendering it has been paid for. */
 interface Match {
-  slide: Slide
+  segment: Segment
   score: number
   titleRanges: Range[]
   /** Where each term first occurs in the body; empty for a title-only hit. */
@@ -140,17 +140,17 @@ interface Match {
 }
 
 function present(match: Match, terms: QueryTerm[]): SearchResult {
-  const { text, lower, title } = searchable(match.slide)
+  const { text, lower, title } = searchable(match.segment)
   return {
-    slide: match.slide,
+    segment: match.segment,
     title: toSegments(title, match.titleRanges),
     snippet: buildSnippet(text, lower, terms, match.bodyAnchors),
     score: match.score,
   }
 }
 
-function matchInSlide(slide: Slide, terms: QueryTerm[]): Match | null {
-  const { lower, titleLower } = searchable(slide)
+function matchInSegment(segment: Segment, terms: QueryTerm[]): Match | null {
+  const { lower, titleLower } = searchable(segment)
   const titleRanges: Range[] = []
   const bodyAnchors: Range[] = []
   let score = 0
@@ -181,7 +181,7 @@ function matchInSlide(slide: Slide, terms: QueryTerm[]): Match | null {
     score += PROXIMITY_BONUS
   }
 
-  return { slide, score, titleRanges, bodyAnchors }
+  return { segment, score, titleRanges, bodyAnchors }
 }
 
 /** Scores one term against the title and records what to highlight. */
@@ -215,9 +215,9 @@ function buildSnippet(
   lower: string,
   terms: QueryTerm[],
   anchors: Range[],
-): SearchSegment[] {
+): TextRun[] {
   if (anchors.length === 0) {
-    // Title-only match: show the opening of the slide for context.
+    // Title-only match: show the opening of the segment for context.
     return toSegments(text.slice(0, SNIPPET_RADIUS * 2), [])
   }
 
@@ -297,8 +297,8 @@ function mergeRanges(ranges: Range[]): Range[] {
 }
 
 /** Splits text into highlighted and plain runs, so React can render it safely. */
-function toSegments(text: string, ranges: Range[]): SearchSegment[] {
-  const segments: SearchSegment[] = []
+function toSegments(text: string, ranges: Range[]): TextRun[] {
+  const segments: TextRun[] = []
   let at = 0
 
   for (const range of mergeRanges(ranges)) {
@@ -347,7 +347,7 @@ export function fuzzyMatch(text: string, term: string): FuzzyMatch | null {
   const n = text.length
   const m = term.length
   if (m === 0 || m > n) return null
-  // Almost every slide in a document fails this, and it costs one pass.
+  // Almost every segment in a document fails this, and it costs one pass.
   if (!hasSubsequence(text, term)) return null
 
   const NONE = -Infinity
@@ -452,7 +452,7 @@ function qualityOf(text: string, indices: number[]): number {
  * Is `term` a subsequence of `text` at all? A greedy left-to-right scan answers
  * that exactly — it can only fail when no match exists — for the cost of one
  * pass, which is what keeps the matrix below off the hot path. Nearly every
- * slide in a document is rejected here.
+ * segment in a document is rejected here.
  */
 function hasSubsequence(text: string, term: string): boolean {
   let at = 0
@@ -465,7 +465,7 @@ function hasSubsequence(text: string, term: string): boolean {
 }
 
 /*
- * `fuzzyMatch` runs once per slide per keystroke, so its working memory is
+ * `fuzzyMatch` runs once per segment per keystroke, so its working memory is
  * reused rather than reallocated: three buffers grown to the largest title and
  * term seen so far. Safe because the matcher is synchronous and never nested.
  */
