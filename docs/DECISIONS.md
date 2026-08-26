@@ -279,6 +279,174 @@ the naming trade-off. No code was restructured in this session.
 
 ---
 
+## 2026-08-05
+
+### Decision
+Rank search results with a score, and require every term of a multi-term query to match.
+
+### Context
+v1 search was `lower.indexOf(needle)` with two buckets — title hits, then body hits — and an
+early break once the buckets were full. `ROADMAP.md` listed "no fuzzy matching, ranking beyond
+headings-first, or multi-term queries" as still open from v1.
+
+### Reasoning
+Two buckets cannot express "this heading match starts a word and that one is buried mid-word",
+which is most of what makes a result list feel right. A numeric score can: title over body,
+word-start over mid-word, exact over fuzzy, all-terms-in-one-passage over scattered. Terms
+narrow rather than widen (AND, not OR) because the query is used to *find a passage*, not to
+gather everything vaguely related — `retry webhook` should mean "the slide about retrying
+webhooks", not every slide mentioning either word. Ties fall back to segment index, so the
+result list stays a pure function of the model and the query, which the determinism principle
+requires and a test now locks.
+
+### Consequences
+The early break had to go — a score cannot be compared against results that were never
+computed — so every segment is now scanned on every keystroke, which made performance a design
+constraint rather than an afterthought (see below). "Headings first" became an emergent
+property of the weights rather than a control-flow branch.
+
+---
+
+### Decision
+Apply fuzzy (subsequence) matching to titles only. Bodies stay literal.
+
+### Context
+Fuzzy matching was the headline of the open item, and the obvious reading is "fuzzy search
+over the document".
+
+### Reasoning
+In a six-word heading, a subsequence match carries information. In a six-hundred-word section,
+the letters of almost any short term appear in order somewhere, so a body subsequence match is
+noise that would swamp the genuine hits. Restricting it to titles is also what command
+palettes do, and it keeps the expensive matcher off the largest strings in the document.
+
+### Consequences
+`authn` finds "Authentication" and `shrtcts` finds "Keyboard Shortcuts", but no query reaches
+body prose fuzzily — a limitation worth stating in the README rather than leaving users to
+discover. Quoted terms opt out of fuzziness entirely, giving an escape hatch when a literal
+match is what is wanted.
+
+---
+
+### Decision
+Score a fuzzy match twice, with two different formulas: one to *choose* the best match, one to
+*rate* it — and charge the rating only for letters skipped inside a word.
+
+### Context
+The first implementation used the dynamic-programming score for both, plus a span filter
+rejecting matches spread too far across the title. It rejected `abg` against "alpha beta
+gamma": the span was 12 for a 3-character term. Recomputing by hand showed the same problem in
+the quality ratio — the uniform gap penalty gives `adr` against "Architecture Decision
+Records" a quality of 0.125, far below any sane threshold.
+
+### Reasoning
+The two questions are genuinely different. Choosing between candidate matches needs a metric
+that penalises distance, or the matcher wanders. Rating the winner needs a metric that
+reflects what a reader would call a good match — and jumping to the start of the *next word*
+is not a defect, it is what an acronym is. Charging for a gap only when the landing character
+is mid-word encodes exactly that distinction, and it turns initials from a rejected case into
+a supported one.
+
+### Consequences
+`adr` matching "Architecture Decision Records" is now deliberate behaviour with a test, not an
+accident. The looser rule also admits weak matches — `adr` matches "Re**ad**e**r**" at quality
+0.375, just over the 0.35 threshold. That was left in knowingly: raising the threshold to
+exclude it also excludes real typo matches like `cfg` → `config`, and a fuzzy hit never
+outranks an exact one, so the cost of a false positive is one extra row in a ranked list.
+
+---
+
+### Decision
+Return a result as an array of highlight segments rather than a `before` / `match` / `after`
+triple.
+
+### Context
+The v1 shape assumed exactly one match per result. A multi-term query has at least one match
+per term, and a fuzzy title match highlights several disjoint character runs.
+
+### Reasoning
+Segments (`{ text, match }[]`) are the general case and stay renderer-agnostic: the palette
+maps them to `<mark>` and `<span>` without any HTML being constructed in the search layer,
+which keeps the escaping story identical to v1's. The alternative — returning marked-up HTML —
+would have moved a rendering concern into search, in the same week the roadmap was arguing for
+pulling rendering concerns *out* of everything that is not the renderer.
+
+### Consequences
+Titles are highlighted as well as snippets, which they were not before. `SearchPalette` gained
+a small `Highlighted` component and three tests now assert on the highlighted runs rather than
+on a single match string.
+
+---
+
+### Decision
+Keep the full scan and make it fast by not doing the work, rather than by bounding the scan.
+
+### Context
+The first working version cost 31 ms per keystroke on a 1,040-segment document — enough to be
+felt while typing. Restoring an early break was the obvious fix and would have undone the
+ranking decision above.
+
+### Reasoning
+Measurement showed the cost was not the scan. Making snippet construction lazy — building it
+only for the 40 results actually shown — moved 31 ms to 31 ms, which pointed at the fuzzy
+matcher: it allocated three typed arrays per term-character per candidate. Two changes removed
+almost all of it. A greedy left-to-right subsequence check is exact about *absence* — it can
+only fail when no match exists — so it rejects nearly every candidate in one pass before the
+matrix is touched. And since the matcher is synchronous and never nested, its working memory
+can be module-level buffers grown on demand instead of fresh allocations.
+
+### Consequences
+0.9 ms typical, 3.3 ms worst case (a term that is a subsequence of every title), measured on
+the same document. Ranking survives intact because nothing is skipped, only made cheaper. The
+scratch buffers are shared mutable state, which is safe exactly as long as `fuzzyMatch` stays
+synchronous and non-reentrant — a constraint written above it and nowhere else.
+
+---
+
+### Decision
+Claim the File System Access handle synchronously inside the drop handler, and await it after
+the file has been read.
+
+### Context
+Watching was picker-only: `pickMarkdownFile()` returned a handle, but a dropped file arrived as
+a plain `File` with no way to re-read it, so live reload silently did not apply to the most
+common way of opening a document. `ROADMAP.md` listed this as the second item still open from
+v1.
+
+### Reasoning
+`DataTransferItem.getAsFileSystemHandle()` closes the gap, but the `DataTransfer` is neutered
+the moment the handler returns — so the call has to happen synchronously even though its
+result is only needed later. Returning the promise from a plain function rather than making
+`handleFromDrop` an `async` function is what enforces that: an `async` helper would look
+identical at the call site and fail intermittently.
+
+### Consequences
+A dropped file now live-reloads exactly like a picked one on Chromium, and elsewhere it loads
+as before without watching. The ordering constraint is load-bearing and easy to break with a
+well-meaning refactor to `async`, so it is documented at the function rather than in a commit
+message.
+
+---
+
+### Decision
+Delete the roadmap section from `README.md` and point at `ROADMAP.md` instead.
+
+### Context
+The README carried its own v1/v2/v3 list, written before `ROADMAP.md` existed. It still listed
+"Live reload while editing" as a v2 item after live reload had shipped, and its v2/v3 contents
+no longer resembled the actual plan.
+
+### Reasoning
+Two roadmaps means one of them is wrong, and the stale one is whichever nobody is editing.
+`ROADMAP.md` is already labelled the plan of record in `docs/architecture-notes.md`, so the
+README's copy had no job except to drift.
+
+### Consequences
+One place to update when the plan changes. The README keeps a three-line summary so a reader
+still learns the shape of the plan without a second click.
+
+---
+
 ## 2026-08-08
 
 ### Decision
